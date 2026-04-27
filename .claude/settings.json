@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm tauri dev)",
+      "Bash(pnpm tauri build:*)",
+      "Bash(pnpm tauri icon:*)",
+      "Bash(pnpm install)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm exec vite:*)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm build)",
+      "Bash(cargo check)",
+      "Bash(cargo check:*)",
+      "Bash(cargo build)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test)",
+      "Bash(cargo test:*)",
+      "Bash(cargo fmt)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(rsvg-convert:*)",
+      "Bash(touch src-tauri/src/lib.rs)",
+      "Bash(update-desktop-database:*)",
+      "Bash(gtk-update-icon-cache:*)"
+    ]
+  }
+}
