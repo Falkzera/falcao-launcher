@@ -51,6 +51,37 @@
   --noise-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
 }
 
+/* Light mode — segue automaticamente o tema do sistema (GNOME/GTK).
+   Calibrado pra conforto: sem branco puro, mantém lógica de elevação
+   do dark-mode (primary = chão, secondary = card, tertiary = profunda).
+   Bias neutral-cool casa com accent Amber sem virar sépia. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg-primary: #eceef3;
+    --color-bg-secondary: #f6f7fa;
+    --color-bg-tertiary: #e2e5ec;
+    --color-bg-card: rgba(246, 247, 250, 0.92);
+    --color-bg-glass: rgba(246, 247, 250, 0.72);
+
+    --color-text-primary: #171a21;
+    --color-text-secondary: #555b6a;
+    --color-text-muted: #7a7f8c;
+
+    --color-accent-glow: rgba(245, 158, 11, 0.22);
+    --color-accent-soft: rgba(245, 158, 11, 0.15);
+
+    --color-success-soft: rgba(34, 197, 94, 0.18);
+    --color-danger-soft: rgba(239, 68, 68, 0.15);
+
+    --color-border-subtle: rgba(17, 24, 39, 0.06);
+    --color-border-default: rgba(17, 24, 39, 0.11);
+
+    --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+    --shadow-md: 0 4px 14px rgba(17, 24, 39, 0.09);
+    --shadow-lg: 0 10px 36px rgba(17, 24, 39, 0.14);
+  }
+}
+
 html, body, #root {
   height: 100%;
   background: var(--color-bg-primary);
