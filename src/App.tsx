@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { motion } from "framer-motion";
 import { ProjectCard } from "./components/ProjectCard";
 import { LogsDrawer } from "./components/LogsDrawer";
 import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
+import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
   LogLine,
@@ -217,10 +219,8 @@ function App() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Falcão Launcher
-            </h1>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">
+            <h1 className="page-title text-3xl">Falcão Launcher</h1>
+            <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
               {loading
                 ? "Scanning ~/Projects…"
                 : `${projects.length} projects · ${runningCount} running${hiddenCount > 0 ? ` · ${hiddenCount} ocultos` : ""}`}
@@ -233,31 +233,31 @@ function App() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar…  (/)"
-                className="w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+                className="w-64 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-primary)] focus:outline-none"
               />
             </div>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)] transition hover:border-[var(--color-accent)]/60">
+            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60">
               <input
                 type="checkbox"
                 checked={autoOpen}
                 onChange={(e) => setAutoOpen(e.target.checked)}
-                className="accent-[var(--color-accent)]"
+                className="accent-[var(--color-accent-primary)]"
               />
               browser auto
             </label>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)] transition hover:border-[var(--color-accent)]/60">
+            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60">
               <input
                 type="checkbox"
                 checked={showHidden}
                 onChange={(e) => setShowHidden(e.target.checked)}
-                className="accent-[var(--color-accent)]"
+                className="accent-[var(--color-accent-primary)]"
               />
               mostrar ocultos
             </label>
             <button
               onClick={() => setAddingPath(true)}
               title="adicionar projeto por path"
-              className="shrink-0 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-muted)] transition hover:border-[var(--color-accent)]/60 hover:text-[var(--color-accent)]"
+              className="shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
             >
               + projeto
             </button>
@@ -273,11 +273,16 @@ function App() {
         {!loading && !error && (
           <>
             {filteredProjects.length === 0 ? (
-              <div className="rounded-md border border-dashed border-[var(--color-border)] py-12 text-center text-sm text-[var(--color-muted)]">
+              <div className="rounded-md border border-dashed border-[var(--color-border-default)] py-12 text-center text-sm text-[var(--color-text-secondary)]">
                 nenhum projeto bate com "{query}"
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <motion.div
+                variants={containerVariants}
+                initial="initial"
+                animate="animate"
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              >
                 {filteredProjects.map((p) => (
                   <ProjectCard
                     key={p.id}
@@ -290,7 +295,7 @@ function App() {
                     onToggleHidden={() => handleToggleHidden(p.id, p.hidden)}
                   />
                 ))}
-              </div>
+              </motion.div>
             )}
           </>
         )}

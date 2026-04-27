@@ -1,9 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import vscodeIcon from "../assets/vscode.png";
 import ghosttyIcon from "../assets/ghostty.png";
 import { SystemIcon } from "./SystemIcon";
+import { cardHover, cardVariants } from "../styles/animations";
 import type { Project, ProjectStatus } from "../types";
 
 type Props = {
@@ -33,7 +35,7 @@ function colorFromName(name: string): string {
 }
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
-  idle: "var(--color-muted)",
+  idle: "var(--color-text-secondary)",
   running: "var(--color-success)",
   crashed: "var(--color-danger)",
 };
@@ -109,19 +111,24 @@ export function ProjectCard({
   }
 
   return (
-    <div
+    <motion.div
+      layout
+      variants={cardVariants}
+      whileHover={cardHover.whileHover}
+      transition={cardHover.transition}
       onClick={onSelect}
       className={clsx(
-        "group cursor-pointer rounded-xl border bg-[var(--color-surface)] p-4 transition",
+        "group cursor-pointer rounded-2xl border p-4 backdrop-blur-md transition-colors",
+        "bg-[var(--color-bg-card)] shadow-[0_4px_12px_rgba(0,0,0,0.18)]",
         selected
-          ? "border-[var(--color-accent)] bg-[var(--color-surface-2)]"
-          : "border-[var(--color-border)] hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)]",
+          ? "border-[var(--color-accent-primary)]"
+          : "border-[var(--color-border-subtle)] hover:border-[var(--color-accent-primary)]/50",
         project.hidden && "opacity-50 hover:opacity-100",
       )}
     >
       <div className="flex items-center gap-3">
         {project.favicon_data_uri ? (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg)]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg-primary)]">
             <img
               src={project.favicon_data_uri}
               alt=""
@@ -137,15 +144,17 @@ export function ProjectCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{project.name}</div>
-          <div className="truncate text-xs text-[var(--color-muted)]">
+          <div className="truncate text-sm font-semibold tracking-tight">
+            {project.name}
+          </div>
+          <div className="truncate font-mono text-[11px] text-[var(--color-text-muted)]">
             {project.path.replace(/^.*\/Projects\//, "~/Projects/")}
           </div>
         </div>
         <button
           onClick={handleToggleHidden}
           title={project.hidden ? "voltar a mostrar" : "ocultar projeto"}
-          className="opacity-0 transition group-hover:opacity-100 text-[var(--color-muted)] hover:text-[var(--color-accent)]"
+          className="opacity-0 transition group-hover:opacity-100 text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)]"
           aria-label={project.hidden ? "voltar a mostrar" : "ocultar projeto"}
         >
           {project.hidden ? (
@@ -163,7 +172,7 @@ export function ProjectCard({
         <button
           onClick={handleConfigure}
           title="configurar portas"
-          className="opacity-0 transition group-hover:opacity-100 text-[var(--color-muted)] hover:text-[var(--color-accent)]"
+          className="opacity-0 transition group-hover:opacity-100 text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)]"
           aria-label="configurar portas"
         >
           <svg
@@ -192,10 +201,10 @@ export function ProjectCard({
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-muted)]">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-text-secondary)]">
           {project.has_package_json ? (
             runnable ? (
-              <span className="truncate rounded-md bg-[var(--color-accent-soft)] px-2 py-1 font-mono text-[var(--color-accent)]">
+              <span className="truncate rounded-md bg-[var(--color-accent-soft)] px-2 py-1 font-mono text-[var(--color-accent-primary)]">
                 {project.package_manager}{" "}
                 {project.package_manager === "yarn"
                   ? project.detected_script
@@ -222,7 +231,7 @@ export function ProjectCard({
             onClick={handleOpenEditor}
             title="abrir no VSCode"
             aria-label="abrir no VSCode"
-            className="rounded-md p-1.5 transition hover:bg-[var(--color-bg)]"
+            className="rounded-md p-1.5 transition hover:bg-[var(--color-bg-primary)]"
           >
             <SystemIcon
               name="visual-studio-code"
@@ -234,7 +243,7 @@ export function ProjectCard({
             onClick={handleOpenTerminal}
             title="abrir terminal Ghostty"
             aria-label="abrir terminal Ghostty"
-            className="rounded-md p-1.5 transition hover:bg-[var(--color-bg)]"
+            className="rounded-md p-1.5 transition hover:bg-[var(--color-bg-primary)]"
           >
             <SystemIcon
               name="com.mitchellh.ghostty"
@@ -242,20 +251,39 @@ export function ProjectCard({
               className="h-4 w-4"
             />
           </button>
-          <button
+          <motion.button
             onClick={handleAction}
             disabled={!runnable}
+            whileHover={!runnable ? undefined : { scale: 1.02 }}
+            whileTap={!runnable ? undefined : { scale: 0.96 }}
             className={clsx(
-              "rounded-md px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-[var(--color-border)] disabled:text-[var(--color-muted)]",
-              isRunning
-                ? "bg-[var(--color-danger)] text-white hover:opacity-90"
-                : "bg-[var(--color-accent)] text-black hover:opacity-90",
+              "relative isolate overflow-hidden rounded-xl px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-[var(--color-border-default)] disabled:text-[var(--color-text-secondary)]",
+              !runnable && "bg-[var(--color-border-default)]",
+              runnable && (isRunning ? "text-white" : "text-black"),
             )}
           >
-            {isRunning ? "Stop" : "Run"}
-          </button>
+            <AnimatePresence initial={false} mode="sync">
+              <motion.span
+                key={isRunning ? "stop" : "run"}
+                aria-hidden
+                className={clsx(
+                  "absolute inset-0 -z-10",
+                  isRunning
+                    ? "bg-[var(--color-danger)]"
+                    : "bg-[var(--color-accent-primary)]",
+                )}
+                initial={{ clipPath: "circle(0% at 50% 50%)" }}
+                animate={{ clipPath: "circle(150% at 50% 50%)" }}
+                exit={{ clipPath: "circle(0% at 50% 50%)" }}
+                transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+              />
+            </AnimatePresence>
+            <span className="relative z-10">
+              {isRunning ? "Stop" : "Run"}
+            </span>
+          </motion.button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

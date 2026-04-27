@@ -1,24 +1,106 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700;800&display=swap");
+
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0b0d10;
-  --color-surface: #14171c;
-  --color-surface-2: #1c2027;
-  --color-border: #262b33;
-  --color-text: #e7eaee;
-  --color-muted: #8b94a3;
-  --color-accent: #f59e0b;
-  --color-accent-soft: #f59e0b22;
+  /* Surfaces */
+  --color-bg-primary: #0f1117;
+  --color-bg-secondary: #1a1d28;
+  --color-bg-tertiary: #242836;
+  --color-bg-card: rgba(26, 29, 40, 0.8);
+  --color-bg-glass: rgba(255, 255, 255, 0.04);
+
+  /* Text */
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #8b8fa3;
+  --color-text-muted: #5a5e72;
+
+  /* Accent — Amber (preserva identidade laranja do ícone do launcher) */
+  --color-accent-primary: #f59e0b;
+  --color-accent-secondary: #fbbf24;
+  --color-accent-glow: rgba(245, 158, 11, 0.18);
+  --color-accent-soft: rgba(245, 158, 11, 0.13);
+
+  /* Feedback */
   --color-success: #22c55e;
-  --color-success-soft: #22c55e22;
+  --color-success-soft: rgba(34, 197, 94, 0.13);
+  --color-warning: #f59e0b;
   --color-danger: #ef4444;
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --color-danger-soft: rgba(239, 68, 68, 0.13);
+  --color-info: #3b82f6;
+
+  /* Borders */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+
+  /* Typography */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+}
+
+:root {
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--color-accent-glow);
+
+  /* Editorial Refined — paper-grain noise overlay (~1.5% perceived) */
+  --noise-texture: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
 }
 
 html, body, #root {
   height: 100%;
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-image: var(--noise-texture);
+  background-blend-mode: overlay;
+}
+
+/* Display headings — Fraunces editorial */
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Scrollbar polida */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Radial reveal — feedback colors NEVER pop, sempre via clip-path */
+@keyframes radial-reveal {
+  from { clip-path: circle(0% at 50% 50%); }
+  to { clip-path: circle(150% at 50% 50%); }
+}
+.radial-reveal {
+  animation: radial-reveal 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }

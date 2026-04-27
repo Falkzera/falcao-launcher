@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { modalVariants, overlayVariants } from "../styles/animations";
 import type { Project, ProjectConfig } from "../types";
 
 type Props = {
@@ -69,30 +71,38 @@ export function ProjectConfigModal({ project, onClose }: Props) {
   }
 
   return (
-    <div
+    <motion.div
+      variants={overlayVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
-        className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl"
+      <motion.div
+        variants={modalVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="w-full max-w-md rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
-          <h2 className="text-lg font-semibold">Configurar portas</h2>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">
+          <h2 className="page-title text-xl">Configurar portas</h2>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
             {project.name}
           </p>
         </div>
 
         {loading ? (
-          <div className="py-6 text-center text-sm text-[var(--color-muted)]">
+          <div className="py-6 text-center text-sm text-[var(--color-text-secondary)]">
             Carregando…
           </div>
         ) : (
           <>
             <div className="space-y-3">
               <label className="block">
-                <span className="block text-xs uppercase tracking-wide text-[var(--color-muted)]">
+                <span className="block text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
                   Porta frontend (PORT)
                 </span>
                 <input
@@ -102,12 +112,12 @@ export function ProjectConfigModal({ project, onClose }: Props) {
                   value={frontendPort}
                   onChange={(e) => setFrontendPort(e.target.value)}
                   placeholder="auto"
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:border-[var(--color-accent)] focus:outline-none"
+                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm focus:border-[var(--color-accent-primary)] focus:outline-none"
                 />
               </label>
 
               <label className="block">
-                <span className="block text-xs uppercase tracking-wide text-[var(--color-muted)]">
+                <span className="block text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
                   Porta backend (BACKEND_PORT)
                 </span>
                 <input
@@ -117,12 +127,12 @@ export function ProjectConfigModal({ project, onClose }: Props) {
                   value={backendPort}
                   onChange={(e) => setBackendPort(e.target.value)}
                   placeholder="auto"
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:border-[var(--color-accent)] focus:outline-none"
+                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm focus:border-[var(--color-accent-primary)] focus:outline-none"
                 />
               </label>
             </div>
 
-            <p className="mt-3 text-xs text-[var(--color-muted)]">
+            <p className="mt-3 text-xs text-[var(--color-text-secondary)]">
               Vazio = sem override. Se a porta preferida estiver ocupada, o
               launcher tenta a próxima livre.
             </p>
@@ -137,21 +147,21 @@ export function ProjectConfigModal({ project, onClose }: Props) {
               <button
                 onClick={onClose}
                 disabled={saving}
-                className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-xs font-semibold text-[var(--color-muted)] transition hover:text-[var(--color-text)] disabled:opacity-50"
+                className="rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-md bg-[var(--color-accent)] px-3 py-2 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-50"
+                className="rounded-md bg-[var(--color-accent-primary)] px-3 py-2 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? "Salvando…" : "Salvar"}
               </button>
             </div>
           </>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
