@@ -20,26 +20,42 @@ pub struct Project {
 const PREFERRED_SCRIPTS: &[&str] = &["dev:all", "dev", "start:dev", "start"];
 
 const FAVICON_CANDIDATES: &[&str] = &[
+    // SVG/PNG genéricos (preferência: vetor primeiro, raster depois)
     "public/favicon.svg",
     "public/favicon.png",
-    "public/favicon.ico",
     "public/icon.svg",
     "public/icon.png",
     "public/logo.svg",
     "public/logo.png",
+    // PWA standards — Next/Vite/CRA scaffolds geram esses
+    "public/icon-192x192.png",
+    "public/icon-256x256.png",
+    "public/icon-384x384.png",
+    "public/apple-touch-icon.png",
+    "public/icon-512x512.png",
+    // .ico por último (geralmente maior, qualidade pior em 16x16)
+    "public/favicon.ico",
+    // src/assets — Vite/CRA bundlados
     "src/assets/favicon.svg",
     "src/assets/favicon.png",
     "src/assets/logo.svg",
     "src/assets/logo.png",
+    // assets/images — usado por governanca-mais-react e similares
+    "public/assets/images/logo.png",
+    "public/assets/images/logo.svg",
+    "public/assets/images/icon.png",
+    "public/assets/images/icon.svg",
+    // Monorepos
     "apps/web/public/favicon.svg",
     "apps/web/public/favicon.png",
     "apps/web/public/favicon.ico",
+    // Frameworks com static/ (SvelteKit, Astro)
     "static/favicon.svg",
     "static/favicon.png",
     "static/favicon.ico",
 ];
 
-const MAX_FAVICON_BYTES: u64 = 256 * 1024;
+const MAX_FAVICON_BYTES: u64 = 512 * 1024;
 
 fn read_scripts(package_json: &Path) -> Vec<String> {
     let Ok(text) = fs::read_to_string(package_json) else {
