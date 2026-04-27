@@ -118,14 +118,26 @@ export function ProjectCard({
       transition={cardHover.transition}
       onClick={onSelect}
       className={clsx(
-        "group cursor-pointer rounded-2xl border p-4 backdrop-blur-md transition-colors",
+        "group relative cursor-pointer rounded-2xl border p-4 backdrop-blur-md transition-colors",
         "bg-[var(--color-bg-card)] shadow-[0_4px_12px_rgba(0,0,0,0.18)]",
-        selected
-          ? "border-[var(--color-accent-primary)]"
-          : "border-[var(--color-border-subtle)] hover:border-[var(--color-accent-primary)]/50",
-        project.hidden && "opacity-50 hover:opacity-100",
+        selected && "border-[var(--color-accent-primary)]",
+        !selected && !project.hidden &&
+          "border-[var(--color-border-subtle)] hover:border-[var(--color-accent-primary)]/50",
+        project.hidden && [
+          "border-dashed border-[var(--color-border-default)]",
+          "bg-[var(--color-bg-secondary)]/40 opacity-60 saturate-50",
+          "hover:opacity-100 hover:saturate-100",
+        ],
       )}
     >
+      {project.hidden && (
+        <span
+          className="pointer-events-none absolute -top-2 left-4 rounded-md bg-[var(--color-bg-tertiary)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] ring-1 ring-[var(--color-border-default)]"
+          aria-hidden
+        >
+          oculto
+        </span>
+      )}
       <div className="flex items-center gap-3">
         {project.favicon_data_uri ? (
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-bg-primary)]">

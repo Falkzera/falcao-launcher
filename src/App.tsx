@@ -7,6 +7,7 @@ import { ProjectCard } from "./components/ProjectCard";
 import { LogsDrawer } from "./components/LogsDrawer";
 import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
+import { Checkbox } from "./components/Checkbox";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -236,24 +237,16 @@ function App() {
                 className="w-64 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-primary)] focus:outline-none"
               />
             </div>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60">
-              <input
-                type="checkbox"
-                checked={autoOpen}
-                onChange={(e) => setAutoOpen(e.target.checked)}
-                className="accent-[var(--color-accent-primary)]"
-              />
-              browser auto
-            </label>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60">
-              <input
-                type="checkbox"
-                checked={showHidden}
-                onChange={(e) => setShowHidden(e.target.checked)}
-                className="accent-[var(--color-accent-primary)]"
-              />
-              mostrar ocultos
-            </label>
+            <Checkbox
+              checked={autoOpen}
+              onChange={setAutoOpen}
+              label="browser auto"
+            />
+            <Checkbox
+              checked={showHidden}
+              onChange={setShowHidden}
+              label="mostrar ocultos"
+            />
             <button
               onClick={() => setAddingPath(true)}
               title="adicionar projeto por path"
