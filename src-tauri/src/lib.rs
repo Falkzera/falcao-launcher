@@ -19,6 +19,7 @@ pub fn run() {
         .manage(ProcessState::new())
         .invoke_handler(tauri::generate_handler![
             scan_projects,
+            scanner::list_icon_candidates,
             process::start_project,
             process::stop_project,
             process::running_ids,

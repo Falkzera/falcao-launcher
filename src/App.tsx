@@ -324,6 +324,7 @@ function App() {
             }
           }
           onClose={() => setConfiguring(null)}
+          onSaved={refreshProjects}
         />
       )}
 

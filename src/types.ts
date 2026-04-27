@@ -45,6 +45,13 @@ export type AllocatedPortsPayload = {
 export type ProjectConfig = {
   frontend_port: number | null;
   backend_port: number | null;
+  custom_icon_path: string | null;
+};
+
+export type IconCandidate = {
+  relative_path: string;
+  data_uri: string;
+  size_bytes: number;
 };
 
 export type ProjectStatus = "idle" | "running" | "crashed";

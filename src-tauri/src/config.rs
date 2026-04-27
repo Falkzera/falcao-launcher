@@ -9,6 +9,8 @@ pub struct ProjectConfig {
     pub frontend_port: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backend_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_icon_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -76,7 +78,10 @@ pub fn get_project_config(id: String) -> ProjectConfig {
 #[tauri::command]
 pub fn set_project_config(id: String, config: ProjectConfig) -> Result<(), String> {
     let mut app_config = load();
-    if config.frontend_port.is_none() && config.backend_port.is_none() {
+    let empty = config.frontend_port.is_none()
+        && config.backend_port.is_none()
+        && config.custom_icon_path.is_none();
+    if empty {
         app_config.projects.remove(&id);
     } else {
         app_config.projects.insert(id, config);

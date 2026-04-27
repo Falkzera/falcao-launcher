@@ -109,21 +109,116 @@ fn mime_for(path: &Path) -> &'static str {
     }
 }
 
+fn read_image_as_data_uri(path: &Path) -> Option<String> {
+    let meta = fs::metadata(path).ok()?;
+    if !meta.is_file() || meta.len() > MAX_FAVICON_BYTES {
+        return None;
+    }
+    let bytes = fs::read(path).ok()?;
+    let mime = mime_for(path);
+    Some(format!("data:{};base64,{}", mime, STANDARD.encode(&bytes)))
+}
+
 fn read_favicon(dir: &Path) -> Option<String> {
     for candidate in FAVICON_CANDIDATES {
-        let path = dir.join(candidate);
-        let Ok(meta) = fs::metadata(&path) else {
-            continue;
-        };
-        if !meta.is_file() || meta.len() > MAX_FAVICON_BYTES {
-            continue;
+        if let Some(uri) = read_image_as_data_uri(&dir.join(candidate)) {
+            return Some(uri);
         }
-        let Ok(bytes) = fs::read(&path) else { continue };
-        let mime = mime_for(&path);
-        let encoded = STANDARD.encode(&bytes);
-        return Some(format!("data:{};base64,{}", mime, encoded));
     }
     None
+}
+
+#[derive(Serialize, Clone)]
+pub struct IconCandidate {
+    pub relative_path: String,
+    pub data_uri: String,
+    pub size_bytes: u64,
+}
+
+const ICON_DIRS: &[&str] = &[
+    "public",
+    "src/assets",
+    "static",
+    "apps/web/public",
+    "public/assets/images",
+    "src/assets/images",
+    "assets",
+    "assets/images",
+];
+
+const ICON_EXTS: &[&str] = &["svg", "png", "ico", "webp", "jpg", "jpeg", "gif"];
+
+fn looks_like_icon_name(name: &str) -> bool {
+    let n = name.to_lowercase();
+    n.contains("favicon")
+        || n.contains("icon")
+        || n.contains("logo")
+        || n == "apple-touch-icon"
+        || n.starts_with("brand")
+}
+
+#[tauri::command]
+pub fn list_icon_candidates(project_path: String) -> Result<Vec<IconCandidate>, String> {
+    let root = PathBuf::from(&project_path);
+    if !root.is_dir() {
+        return Err(format!("invalid project path: {}", project_path));
+    }
+    let mut out: Vec<IconCandidate> = Vec::new();
+    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+
+    for sub in ICON_DIRS {
+        let dir = root.join(sub);
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(ext) = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(str::to_ascii_lowercase)
+            else {
+                continue;
+            };
+            if !ICON_EXTS.iter().any(|e| *e == ext.as_str()) {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
+            if !looks_like_icon_name(stem) {
+                continue;
+            }
+            let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if !seen.insert(canonical) {
+                continue;
+            }
+            let Ok(meta) = fs::metadata(&path) else {
+                continue;
+            };
+            if meta.len() > MAX_FAVICON_BYTES {
+                continue;
+            }
+            let Some(data_uri) = read_image_as_data_uri(&path) else {
+                continue;
+            };
+            let relative_path = path
+                .strip_prefix(&root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| path.to_string_lossy().to_string());
+            out.push(IconCandidate {
+                relative_path,
+                data_uri,
+                size_bytes: meta.len(),
+            });
+        }
+    }
+    out.sort_by(|a, b| a.size_bytes.cmp(&b.size_bytes));
+    Ok(out)
 }
 
 fn scan_dir(dir: &Path, extra: bool) -> Option<Project> {
@@ -145,7 +240,12 @@ fn scan_dir(dir: &Path, extra: bool) -> Option<Project> {
     } else {
         "pnpm".into()
     };
-    let favicon_data_uri = read_favicon(dir);
+    let cfg = crate::config::project(&name);
+    let favicon_data_uri = cfg
+        .custom_icon_path
+        .as_deref()
+        .and_then(|rel| read_image_as_data_uri(&dir.join(rel)))
+        .or_else(|| read_favicon(dir));
     let hidden = crate::config::is_hidden(&name);
 
     Some(Project {
