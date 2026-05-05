@@ -35,6 +35,7 @@ pub fn run() {
             config::remove_extra_path,
             external::open_in_editor,
             external::open_in_terminal,
+            external::spawn_claude,
             icon::resolve_icon,
             claude::claude_snapshot,
             claude::list_claude_sessions,

@@ -33,3 +33,13 @@ pub fn open_in_terminal(path: String) -> Result<(), String> {
     cmd.arg(format!("--working-directory={}", p.display()));
     spawn_detached(&mut cmd).map_err(|e| format!("falha ao abrir Ghostty: {}", e))
 }
+
+#[tauri::command]
+pub fn spawn_claude(path: String) -> Result<(), String> {
+    let p = validate_path(&path)?;
+    let mut cmd = Command::new("ghostty");
+    cmd.arg(format!("--working-directory={}", p.display()))
+        .arg("-e")
+        .arg("claude");
+    spawn_detached(&mut cmd).map_err(|e| format!("falha ao spawnar Claude: {}", e))
+}
