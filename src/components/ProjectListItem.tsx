@@ -6,7 +6,9 @@ import vscodeIcon from "../assets/vscode.png";
 import ghosttyIcon from "../assets/ghostty.png";
 import nautilusIcon from "../assets/nautilus.png";
 import { SystemIcon } from "./SystemIcon";
-import type { Project, ProjectStatus } from "../types";
+import { ClaudeChip } from "./ClaudeChip";
+import { SpawnClaudeButton } from "./SpawnClaudeButton";
+import type { ClaudeProjectState, Project, ProjectStatus } from "../types";
 
 type ExternalListener = { port: number; pid: number };
 
@@ -19,6 +21,8 @@ type Props = {
   onSelect: () => void;
   onConfigure: () => void;
   onToggleHidden: () => void;
+  claudeState?: ClaudeProjectState | null;
+  now?: number;
 };
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
@@ -50,6 +54,8 @@ export function ProjectListItem({
   onSelect,
   onConfigure,
   onToggleHidden,
+  claudeState = null,
+  now = Date.now(),
 }: Props) {
   const runnable = project.detected_script !== null;
   const isRunning = status === "running";
@@ -162,6 +168,7 @@ export function ProjectListItem({
               oculto
             </span>
           )}
+          <ClaudeChip state={claudeState} now={now} />
         </div>
         <div className="truncate font-mono text-[10px] text-[var(--color-text-muted)]">
           {project.path.replace(/^.*\/Projects\//, "~/Projects/")}
@@ -273,6 +280,7 @@ export function ProjectListItem({
         >
           <SystemIcon name="org.gnome.Nautilus" fallback={nautilusIcon} className="h-4 w-4" />
         </button>
+        <SpawnClaudeButton path={project.path} />
         <button
           onClick={handleAction}
           disabled={!runnable && !canStop}

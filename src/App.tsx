@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { motion } from "framer-motion";
 import { ProjectCard } from "./components/ProjectCard";
 import { ProjectListItem } from "./components/ProjectListItem";
-import { LogsDrawer } from "./components/LogsDrawer";
+import { ProjectDetailDrawer } from "./components/ProjectDetailDrawer";
 import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
 import { SettingsMenu } from "./components/SettingsMenu";
@@ -491,11 +491,12 @@ function App() {
       </div>
 
       {selectedProject && (
-        <LogsDrawer
+        <ProjectDetailDrawer
           project={selectedProject}
           status={statuses[selectedProject.id] ?? "idle"}
           port={ports[selectedProject.id]}
           logs={logs[selectedProject.id] ?? []}
+          claudeState={claudeByProjectPath[selectedProject.path] ?? null}
           onClose={() => setSelected(null)}
           onClear={() =>
             setLogs((prev) => ({ ...prev, [selectedProject.id]: [] }))
