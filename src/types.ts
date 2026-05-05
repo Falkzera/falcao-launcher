@@ -1,3 +1,15 @@
+export type WorktreeInfo = {
+  parent_id: string;
+  parent_path: string;
+  branch: string;
+};
+
+export type MonorepoParentInfo = {
+  id: string;
+  name: string;
+  path: string;
+};
+
 export type Project = {
   id: string;
   name: string;
@@ -9,6 +21,8 @@ export type Project = {
   favicon_data_uri: string | null;
   hidden: boolean;
   extra: boolean;
+  worktree: WorktreeInfo | null;
+  monorepo_parent: MonorepoParentInfo | null;
 };
 
 export type LogLine = {
@@ -54,4 +68,12 @@ export type IconCandidate = {
   size_bytes: number;
 };
 
-export type ProjectStatus = "idle" | "running" | "crashed";
+export type ProjectStatus = "idle" | "running" | "crashed" | "external";
+
+export type SystemListener = {
+  port: number;
+  pid: number;
+  address: string;
+  cwd: string | null;
+  cmd: string | null;
+};

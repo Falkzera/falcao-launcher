@@ -6,14 +6,27 @@ type Props = {
   onChange: (checked: boolean) => void;
   label: string;
   className?: string;
+  variant?: "default" | "minimal";
 };
 
-export function Checkbox({ checked, onChange, label, className }: Props) {
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  className,
+  variant = "default",
+}: Props) {
+  const isMinimal = variant === "minimal";
   return (
     <label
       className={clsx(
-        "inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition select-none",
-        "hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-text-primary)]",
+        "cursor-pointer select-none transition",
+        isMinimal
+          ? "flex w-full items-center gap-2.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+          : [
+              "inline-flex items-center gap-2 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]",
+              "hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-text-primary)]",
+            ],
         className,
       )}
     >

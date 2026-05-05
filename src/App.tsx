@@ -4,10 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { motion } from "framer-motion";
 import { ProjectCard } from "./components/ProjectCard";
+import { ProjectListItem } from "./components/ProjectListItem";
 import { LogsDrawer } from "./components/LogsDrawer";
 import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
-import { Checkbox } from "./components/Checkbox";
+import { SettingsMenu } from "./components/SettingsMenu";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -17,12 +18,15 @@ import type {
   Project,
   ProjectStatus,
   StatusPayload,
+  SystemListener,
 } from "./types";
 import "./App.css";
 
 const MAX_LOG_LINES = 5000;
 const AUTO_OPEN_KEY = "falcao-launcher.autoOpenBrowser";
 const SHOW_HIDDEN_KEY = "falcao-launcher.showHidden";
+const SHOW_OFFLINE_WORKTREES_KEY = "falcao-launcher.showOfflineWorktrees";
+const VIEW_MODE_KEY = "falcao-launcher.viewMode";
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -31,6 +35,7 @@ function App() {
   const [statuses, setStatuses] = useState<Record<string, ProjectStatus>>({});
   const [logs, setLogs] = useState<Record<string, LogLine[]>>({});
   const [ports, setPorts] = useState<Record<string, number>>({});
+  const [systemPorts, setSystemPorts] = useState<SystemListener[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -40,6 +45,13 @@ function App() {
   });
   const [showHidden, setShowHidden] = useState(() => {
     return localStorage.getItem(SHOW_HIDDEN_KEY) === "true";
+  });
+  const [showOfflineWorktrees, setShowOfflineWorktrees] = useState(() => {
+    return localStorage.getItem(SHOW_OFFLINE_WORKTREES_KEY) === "true";
+  });
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    const saved = localStorage.getItem(VIEW_MODE_KEY);
+    return saved === "list" ? "list" : "grid";
   });
   const [addingPath, setAddingPath] = useState(false);
   const seqRef = useRef(0);
@@ -54,6 +66,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem(SHOW_HIDDEN_KEY, String(showHidden));
   }, [showHidden]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      SHOW_OFFLINE_WORKTREES_KEY,
+      String(showOfflineWorktrees),
+    );
+  }, [showOfflineWorktrees]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   async function refreshProjects() {
     try {
@@ -94,6 +117,10 @@ function App() {
           return next;
         });
       })
+      .catch(() => {});
+
+    invoke<SystemListener[]>("list_system_ports")
+      .then(setSystemPorts)
       .catch(() => {});
   }, []);
 
@@ -152,11 +179,19 @@ function App() {
       },
     );
 
+    const unlistenSystem = listen<SystemListener[]>(
+      "system-ports",
+      (event) => {
+        setSystemPorts(event.payload);
+      },
+    );
+
     return () => {
       unlistenLog.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
       unlistenPort.then((fn) => fn());
       unlistenAllocated.then((fn) => fn());
+      unlistenSystem.then((fn) => fn());
     };
   }, []);
 
@@ -186,21 +221,64 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
 
+  const externalByProject = useMemo(() => {
+    const sorted = [...projects].sort((a, b) => b.path.length - a.path.length);
+    const map: Record<string, Array<{ port: number; pid: number }>> = {};
+    for (const listener of systemPorts) {
+      if (!listener.cwd) continue;
+      const match = sorted.find(
+        (p) =>
+          listener.cwd === p.path ||
+          listener.cwd!.startsWith(p.path + "/"),
+      );
+      if (match) {
+        (map[match.id] ??= []).push({
+          port: listener.port,
+          pid: listener.pid,
+        });
+      }
+    }
+    return map;
+  }, [systemPorts, projects]);
+
   const filteredProjects = useMemo(() => {
     let list = projects;
     if (!showHidden) {
       list = list.filter((p) => !p.hidden);
+    }
+    if (!showOfflineWorktrees) {
+      list = list.filter((p) => {
+        if (!p.worktree) return true;
+        const launcherStatus = statuses[p.id] ?? "idle";
+        if (launcherStatus === "running" || launcherStatus === "crashed")
+          return true;
+        if ((externalByProject[p.id]?.length ?? 0) > 0) return true;
+        return false;
+      });
     }
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
     return list;
-  }, [projects, query, showHidden]);
+  }, [projects, query, showHidden, showOfflineWorktrees, statuses, externalByProject]);
 
   const hiddenCount = useMemo(
     () => projects.filter((p) => p.hidden).length,
     [projects],
+  );
+
+  const offlineWorktreeCount = useMemo(
+    () =>
+      projects.filter((p) => {
+        if (!p.worktree) return false;
+        const launcherStatus = statuses[p.id] ?? "idle";
+        if (launcherStatus === "running" || launcherStatus === "crashed")
+          return false;
+        if ((externalByProject[p.id]?.length ?? 0) > 0) return false;
+        return true;
+      }).length,
+    [projects, statuses, externalByProject],
   );
 
   const selectedProject = selected
@@ -210,6 +288,9 @@ function App() {
   const drawerOpen = selectedProject !== null;
   const runningCount = Object.values(statuses).filter(
     (s) => s === "running",
+  ).length;
+  const externalCount = Object.keys(externalByProject).filter(
+    (id) => (statuses[id] ?? "idle") === "idle",
   ).length;
 
   return (
@@ -224,7 +305,7 @@ function App() {
             <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
               {loading
                 ? "Scanning ~/Projects…"
-                : `${projects.length} projects · ${runningCount} running${hiddenCount > 0 ? ` · ${hiddenCount} ocultos` : ""}`}
+                : `${projects.length} projects · ${runningCount} running${externalCount > 0 ? ` · ${externalCount} externos` : ""}${offlineWorktreeCount > 0 && !showOfflineWorktrees ? ` · ${offlineWorktreeCount} worktrees offline` : ""}${hiddenCount > 0 && !showHidden ? ` · ${hiddenCount} ocultos` : ""}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -237,15 +318,79 @@ function App() {
                 className="w-64 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-primary)] focus:outline-none"
               />
             </div>
-            <Checkbox
-              checked={autoOpen}
-              onChange={setAutoOpen}
-              label="browser auto"
-            />
-            <Checkbox
-              checked={showHidden}
-              onChange={setShowHidden}
-              label="mostrar ocultos"
+            <div className="flex overflow-hidden rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)]">
+              <button
+                onClick={() => setViewMode("grid")}
+                title="grid"
+                aria-label="grid"
+                aria-pressed={viewMode === "grid"}
+                className={
+                  viewMode === "grid"
+                    ? "bg-[var(--color-accent-primary)] px-2.5 py-2 text-black"
+                    : "px-2.5 py-2 text-[var(--color-text-secondary)] transition hover:text-[var(--color-accent-primary)]"
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                title="lista"
+                aria-label="lista"
+                aria-pressed={viewMode === "list"}
+                className={
+                  viewMode === "list"
+                    ? "bg-[var(--color-accent-primary)] px-2.5 py-2 text-black"
+                    : "px-2.5 py-2 text-[var(--color-text-secondary)] transition hover:text-[var(--color-accent-primary)]"
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <SettingsMenu
+              groups={[
+                {
+                  title: "comportamento",
+                  toggles: [
+                    {
+                      key: "auto",
+                      label: "Abrir browser automaticamente",
+                      hint: "ao detectar a porta nos logs",
+                      checked: autoOpen,
+                      onChange: setAutoOpen,
+                    },
+                  ],
+                },
+                {
+                  title: "visualização",
+                  toggles: [
+                    {
+                      key: "hidden",
+                      label: "Mostrar projetos ocultos",
+                      checked: showHidden,
+                      onChange: setShowHidden,
+                    },
+                    {
+                      key: "wt",
+                      label: "Mostrar worktrees offline",
+                      hint: "worktrees rodando aparecem sempre",
+                      checked: showOfflineWorktrees,
+                      onChange: setShowOfflineWorktrees,
+                    },
+                  ],
+                },
+              ]}
             />
             <button
               onClick={() => setAddingPath(true)}
@@ -274,20 +419,41 @@ function App() {
                 variants={containerVariants}
                 initial="initial"
                 animate="animate"
-                className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                className={
+                  viewMode === "grid"
+                    ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                    : "flex flex-col gap-1.5"
+                }
               >
-                {filteredProjects.map((p) => (
-                  <ProjectCard
-                    key={p.id}
-                    project={p}
-                    status={statuses[p.id] ?? "idle"}
-                    port={ports[p.id]}
-                    selected={selected === p.id}
-                    onSelect={() => setSelected(p.id)}
-                    onConfigure={() => setConfiguring(p.id)}
-                    onToggleHidden={() => handleToggleHidden(p.id, p.hidden)}
-                  />
-                ))}
+                {filteredProjects.map((p) => {
+                  const launcherStatus = statuses[p.id] ?? "idle";
+                  const launcherPort = ports[p.id];
+                  const externalListeners = externalByProject[p.id] ?? [];
+                  const hasExternal = externalListeners.length > 0;
+                  const effectiveStatus: ProjectStatus =
+                    launcherStatus === "idle" && hasExternal
+                      ? "external"
+                      : launcherStatus;
+                  const effectivePort =
+                    launcherPort ??
+                    (hasExternal ? externalListeners[0].port : undefined);
+                  const propsCommon = {
+                    project: p,
+                    status: effectiveStatus,
+                    port: effectivePort,
+                    externalListeners:
+                      launcherStatus === "idle" ? externalListeners : [],
+                    selected: selected === p.id,
+                    onSelect: () => setSelected(p.id),
+                    onConfigure: () => setConfiguring(p.id),
+                    onToggleHidden: () => handleToggleHidden(p.id, p.hidden),
+                  };
+                  return viewMode === "grid" ? (
+                    <ProjectCard key={p.id} {...propsCommon} />
+                  ) : (
+                    <ProjectListItem key={p.id} {...propsCommon} />
+                  );
+                })}
               </motion.div>
             )}
           </>
@@ -321,6 +487,8 @@ function App() {
               favicon_data_uri: null,
               hidden: false,
               extra: false,
+              worktree: null,
+              monorepo_parent: null,
             }
           }
           onClose={() => setConfiguring(null)}

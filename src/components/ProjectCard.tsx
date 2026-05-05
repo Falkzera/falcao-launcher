@@ -4,14 +4,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import vscodeIcon from "../assets/vscode.png";
 import ghosttyIcon from "../assets/ghostty.png";
+import nautilusIcon from "../assets/nautilus.png";
 import { SystemIcon } from "./SystemIcon";
 import { cardHover, cardVariants } from "../styles/animations";
 import type { Project, ProjectStatus } from "../types";
+
+type ExternalListener = { port: number; pid: number };
 
 type Props = {
   project: Project;
   status: ProjectStatus;
   port?: number;
+  externalListeners?: ExternalListener[];
   selected: boolean;
   onSelect: () => void;
   onConfigure: () => void;
@@ -34,16 +38,31 @@ function colorFromName(name: string): string {
   return `hsl(${hue} 55% 45%)`;
 }
 
+function accentFromName(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue} 70% 60%)`;
+}
+
+function shortBranch(branch: string): string {
+  return branch.replace(/^worktree-/, "");
+}
+
 const STATUS_COLORS: Record<ProjectStatus, string> = {
   idle: "var(--color-text-secondary)",
   running: "var(--color-success)",
   crashed: "var(--color-danger)",
+  external: "#38bdf8",
 };
 
 export function ProjectCard({
   project,
   status,
   port,
+  externalListeners = [],
   selected,
   onSelect,
   onConfigure,
@@ -51,21 +70,41 @@ export function ProjectCard({
 }: Props) {
   const runnable = project.detected_script !== null;
   const isRunning = status === "running";
+  const isExternal = status === "external";
+  const canStop = isRunning || isExternal;
+  const extraExternalPorts = externalListeners
+    .map((l) => l.port)
+    .filter((p) => p !== port);
 
   async function handleAction(e: React.MouseEvent) {
     e.stopPropagation();
+    if (isRunning) {
+      try {
+        await invoke("stop_project", { id: project.id });
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
+    if (isExternal) {
+      const pids = Array.from(new Set(externalListeners.map((l) => l.pid)));
+      for (const pid of pids) {
+        try {
+          await invoke("kill_pid", { pid });
+        } catch (err) {
+          console.error(`kill ${pid}:`, err);
+        }
+      }
+      return;
+    }
     if (!project.detected_script) return;
     try {
-      if (isRunning) {
-        await invoke("stop_project", { id: project.id });
-      } else {
-        await invoke("start_project", {
-          id: project.id,
-          path: project.path,
-          script: project.detected_script,
-          packageManager: project.package_manager,
-        });
-      }
+      await invoke("start_project", {
+        id: project.id,
+        path: project.path,
+        script: project.detected_script,
+        packageManager: project.package_manager,
+      });
     } catch (err) {
       console.error(err);
     }
@@ -110,6 +149,20 @@ export function ProjectCard({
     }
   }
 
+  async function handleOpenFiles(e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await invoke("open_in_files", { path: project.path });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  const worktree = project.worktree;
+  const monorepo = project.monorepo_parent;
+  const familyKey = worktree?.parent_id ?? monorepo?.id ?? null;
+  const familyAccent = familyKey ? accentFromName(familyKey) : null;
+
   return (
     <motion.div
       layout
@@ -117,6 +170,11 @@ export function ProjectCard({
       whileHover={cardHover.whileHover}
       transition={cardHover.transition}
       onClick={onSelect}
+      style={
+        familyAccent
+          ? { borderLeft: `3px solid ${familyAccent}` }
+          : undefined
+      }
       className={clsx(
         "group relative cursor-pointer rounded-2xl border p-4 backdrop-blur-md transition-colors",
         "bg-[var(--color-bg-card)] shadow-[0_4px_12px_rgba(0,0,0,0.18)]",
@@ -130,6 +188,34 @@ export function ProjectCard({
         ],
       )}
     >
+      {(worktree || monorepo) && (
+        <span
+          className="pointer-events-none absolute -top-2 right-4 flex items-center gap-1 rounded-md bg-[var(--color-bg-tertiary)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ring-[var(--color-border-default)]"
+          aria-hidden
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: familyAccent ?? "currentColor" }}
+          />
+          {worktree ? (
+            <>
+              <span className="text-[var(--color-text-muted)]">worktree</span>
+              <span className="text-[var(--color-text-secondary)]">·</span>
+              <span className="normal-case text-[var(--color-text-primary)]">
+                {shortBranch(worktree.branch)}
+              </span>
+            </>
+          ) : monorepo ? (
+            <>
+              <span className="text-[var(--color-text-muted)]">grupo</span>
+              <span className="text-[var(--color-text-secondary)]">·</span>
+              <span className="normal-case text-[var(--color-text-primary)]">
+                {monorepo.name}
+              </span>
+            </>
+          ) : null}
+        </span>
+      )}
       {project.hidden && (
         <span
           className="pointer-events-none absolute -top-2 left-4 rounded-md bg-[var(--color-bg-tertiary)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] ring-1 ring-[var(--color-border-default)]"
@@ -202,10 +288,19 @@ export function ProjectCard({
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
+        {isExternal && (
+          <span
+            className="rounded-md bg-[#38bdf8]/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#38bdf8] ring-1 ring-[#38bdf8]/40"
+            title="rodando fora do launcher"
+          >
+            ext
+          </span>
+        )}
         <span
           className={clsx(
             "h-2.5 w-2.5 rounded-full transition",
             isRunning && "animate-pulse shadow-[0_0_8px_var(--color-success)]",
+            isExternal && "animate-pulse shadow-[0_0_8px_#38bdf8]",
           )}
           style={{ background: STATUS_COLORS[status] }}
           title={status}
@@ -231,12 +326,32 @@ export function ProjectCard({
           {port && (
             <button
               onClick={handleOpenPort}
-              className="shrink-0 rounded-md bg-[var(--color-success-soft)] px-2 py-1 font-mono text-[var(--color-success)] transition hover:opacity-80"
+              className={clsx(
+                "shrink-0 rounded-md px-2 py-1 font-mono transition hover:opacity-80",
+                isExternal
+                  ? "bg-[#38bdf8]/15 text-[#38bdf8]"
+                  : "bg-[var(--color-success-soft)] text-[var(--color-success)]",
+              )}
               title={`abrir http://localhost:${port}`}
             >
               :{port} ↗
             </button>
           )}
+          {extraExternalPorts.map((p) => (
+            <button
+              key={p}
+              onClick={(e) => {
+                e.stopPropagation();
+                openUrl(`http://localhost:${p}`).catch((err) =>
+                  console.error(err),
+                );
+              }}
+              className="shrink-0 rounded-md bg-[#38bdf8]/15 px-2 py-1 font-mono text-[#38bdf8] transition hover:opacity-80"
+              title={`abrir http://localhost:${p}`}
+            >
+              :{p} ↗
+            </button>
+          ))}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -263,24 +378,37 @@ export function ProjectCard({
               className="h-4 w-4"
             />
           </button>
+          <button
+            onClick={handleOpenFiles}
+            title="abrir no Files (Nautilus)"
+            aria-label="abrir no Files"
+            className="rounded-md p-1.5 transition hover:bg-[var(--color-bg-primary)]"
+          >
+            <SystemIcon
+              name="org.gnome.Nautilus"
+              fallback={nautilusIcon}
+              className="h-4 w-4"
+            />
+          </button>
           <motion.button
             onClick={handleAction}
-            disabled={!runnable}
-            whileHover={!runnable ? undefined : { scale: 1.02 }}
-            whileTap={!runnable ? undefined : { scale: 0.96 }}
+            disabled={!runnable && !canStop}
+            whileHover={!runnable && !canStop ? undefined : { scale: 1.02 }}
+            whileTap={!runnable && !canStop ? undefined : { scale: 0.96 }}
             className={clsx(
               "relative isolate overflow-hidden rounded-xl px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-[var(--color-border-default)] disabled:text-[var(--color-text-secondary)]",
-              !runnable && "bg-[var(--color-border-default)]",
-              runnable && (isRunning ? "text-white" : "text-black"),
+              !runnable && !canStop && "bg-[var(--color-border-default)]",
+              canStop && "text-white",
+              runnable && !canStop && "text-black",
             )}
           >
             <AnimatePresence initial={false} mode="sync">
               <motion.span
-                key={isRunning ? "stop" : "run"}
+                key={canStop ? "stop" : "run"}
                 aria-hidden
                 className={clsx(
                   "absolute inset-0 -z-10",
-                  isRunning
+                  canStop
                     ? "bg-[var(--color-danger)]"
                     : "bg-[var(--color-accent-primary)]",
                 )}
@@ -290,9 +418,7 @@ export function ProjectCard({
                 transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
               />
             </AnimatePresence>
-            <span className="relative z-10">
-              {isRunning ? "Stop" : "Run"}
-            </span>
+            <span className="relative z-10">{canStop ? "Stop" : "Run"}</span>
           </motion.button>
         </div>
       </div>

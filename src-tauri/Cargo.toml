@@ -29,4 +29,5 @@ regex = "1"
 once_cell = "1"
 base64 = "0.22"
 freedesktop-icons = "0.4.0"
+procfs = "0.17"
 

@@ -90,6 +90,17 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+/* JetBrains Mono Regular (400) lê magrinho em telas HiDPI/escuras.
+   Bump pra Medium (500) como baseline — peso canônico de leitura
+   no design system. */
+.font-mono,
+code,
+kbd,
+pre,
+samp {
+  font-weight: 500;
+}
+
 body {
   background-image: var(--noise-texture);
   background-blend-mode: overlay;
