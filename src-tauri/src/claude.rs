@@ -265,6 +265,74 @@ pub fn parse_session_file(path: &Path) -> Result<ClaudeSession, String> {
     Ok(session)
 }
 
+use std::fs;
+
+pub fn claude_projects_root() -> std::path::PathBuf {
+    dirs::home_dir()
+        .map(|h| h.join(".claude").join("projects"))
+        .unwrap_or_else(|| std::path::PathBuf::from("./.claude/projects"))
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Scan completo: lê todas as pastas de projeto em ~/.claude/projects/, todos os JSONL,
+/// agrega por project_path canônico (vindo do `cwd`).
+pub fn snapshot() -> Vec<ClaudeProjectState> {
+    let root = claude_projects_root();
+    let Ok(project_dirs) = fs::read_dir(&root) else {
+        return vec![];
+    };
+
+    use std::collections::HashMap;
+    let mut by_path: HashMap<String, ClaudeProjectState> = HashMap::new();
+
+    for entry in project_dirs.filter_map(|e| e.ok()) {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let dir = entry.path();
+        let Ok(files) = fs::read_dir(&dir) else { continue };
+        for file_entry in files.filter_map(|e| e.ok()) {
+            let path = file_entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            let Ok(session) = parse_session_file(&path) else { continue };
+            if session.project_path.is_empty() {
+                continue;  // sessão órfã sem cwd, ignora
+            }
+            let state = by_path
+                .entry(session.project_path.clone())
+                .or_insert_with(|| ClaudeProjectState {
+                    project_path: session.project_path.clone(),
+                    sessions: Vec::new(),
+                    active_session_id: None,
+                    total_usage: AggregatedUsage::default(),
+                });
+            state.total_usage.add(&session.usage);
+            state.sessions.push(session);
+        }
+    }
+
+    let now = now_ms();
+    let mut out: Vec<ClaudeProjectState> = by_path.into_values().collect();
+    for state in &mut out {
+        state.sessions.sort_by(|a, b| b.last_activity.cmp(&a.last_activity));
+        state.active_session_id = state
+            .sessions
+            .iter()
+            .find(|s| is_active(s.last_activity, now))
+            .map(|s| s.session_id.clone());
+    }
+    out.sort_by(|a, b| a.project_path.cmp(&b.project_path));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,6 +417,19 @@ mod tests {
         assert!(session.usage.total_tokens() > 0, "fixture deve ter pelo menos 1 evento assistant com usage");
         assert!(session.last_activity > session.started_at);
         assert!(!session.project_path.is_empty(), "cwd deve estar populado");
+    }
+
+    #[test]
+    #[ignore]  // só roda manualmente — depende de ~/.claude/projects/ existir
+    fn snapshot_real_dir_returns_data() {
+        let states = snapshot();
+        assert!(!states.is_empty(), "esperava ao menos 1 projeto com sessões");
+        for state in &states {
+            assert!(!state.project_path.is_empty());
+            for session in &state.sessions {
+                assert!(!session.session_id.is_empty());
+            }
+        }
     }
 
     #[test]
