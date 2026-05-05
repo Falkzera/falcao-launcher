@@ -121,7 +121,7 @@ pub fn cost_usd(usage: &AggregatedUsage, p: &ModelPricing) -> f64 {
         / 1_000_000.0
 }
 
-use chrono::DateTime;
+use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -333,6 +333,47 @@ pub fn snapshot() -> Vec<ClaudeProjectState> {
     out
 }
 
+fn truncate_to_bucket(ts_ms: i64, granularity: Granularity) -> i64 {
+    let dt = Utc.timestamp_millis_opt(ts_ms).single().unwrap_or(Utc.timestamp_opt(0, 0).unwrap());
+    let truncated = match granularity {
+        Granularity::Day => dt
+            .with_hour(0).unwrap()
+            .with_minute(0).unwrap()
+            .with_second(0).unwrap()
+            .with_nanosecond(0).unwrap(),
+        Granularity::Month => dt
+            .with_day(1).unwrap()
+            .with_hour(0).unwrap()
+            .with_minute(0).unwrap()
+            .with_second(0).unwrap()
+            .with_nanosecond(0).unwrap(),
+        Granularity::Year => dt
+            .with_month(1).unwrap()
+            .with_day(1).unwrap()
+            .with_hour(0).unwrap()
+            .with_minute(0).unwrap()
+            .with_second(0).unwrap()
+            .with_nanosecond(0).unwrap(),
+    };
+    truncated.timestamp_millis()
+}
+
+pub fn aggregate_buckets(sessions: &[ClaudeSession], granularity: Granularity) -> Vec<TokenBucket> {
+    use std::collections::BTreeMap;
+    let mut by_bucket: BTreeMap<i64, AggregatedUsage> = BTreeMap::new();
+    for s in sessions {
+        let bucket = truncate_to_bucket(s.last_activity, granularity);
+        by_bucket
+            .entry(bucket)
+            .or_default()
+            .add(&s.usage);
+    }
+    by_bucket
+        .into_iter()
+        .map(|(bucket_start, usage)| TokenBucket { bucket_start, usage })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,6 +458,67 @@ mod tests {
         assert!(session.usage.total_tokens() > 0, "fixture deve ter pelo menos 1 evento assistant com usage");
         assert!(session.last_activity > session.started_at);
         assert!(!session.project_path.is_empty(), "cwd deve estar populado");
+    }
+
+    fn make_session(last_activity_iso: &str, input: u64) -> ClaudeSession {
+        let ts = parse_iso_to_unix_ms(last_activity_iso).unwrap();
+        ClaudeSession {
+            session_id: "x".into(),
+            project_path: "/p".into(),
+            git_branch: None,
+            title: None,
+            model: None,
+            started_at: ts,
+            last_activity: ts,
+            message_count: 1,
+            duration_ms: 0,
+            usage: AggregatedUsage {
+                input_tokens: input,
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn aggregate_day_buckets_by_calendar_day() {
+        let sessions = vec![
+            make_session("2026-05-01T10:00:00Z", 100),
+            make_session("2026-05-01T22:00:00Z", 200),
+            make_session("2026-05-02T05:00:00Z", 50),
+        ];
+        let buckets = aggregate_buckets(&sessions, Granularity::Day);
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0].usage.input_tokens, 300);  // 01/05
+        assert_eq!(buckets[1].usage.input_tokens, 50);   // 02/05
+    }
+
+    #[test]
+    fn aggregate_month_buckets() {
+        let sessions = vec![
+            make_session("2026-04-15T10:00:00Z", 100),
+            make_session("2026-05-01T10:00:00Z", 200),
+            make_session("2026-05-30T10:00:00Z", 300),
+        ];
+        let buckets = aggregate_buckets(&sessions, Granularity::Month);
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0].usage.input_tokens, 100);  // abril
+        assert_eq!(buckets[1].usage.input_tokens, 500);  // maio
+    }
+
+    #[test]
+    fn aggregate_year_buckets() {
+        let sessions = vec![
+            make_session("2025-12-31T10:00:00Z", 100),
+            make_session("2026-01-01T10:00:00Z", 200),
+        ];
+        let buckets = aggregate_buckets(&sessions, Granularity::Year);
+        assert_eq!(buckets.len(), 2);
+    }
+
+    #[test]
+    fn aggregate_empty_returns_empty() {
+        let buckets = aggregate_buckets(&[], Granularity::Day);
+        assert!(buckets.is_empty());
     }
 
     #[test]
