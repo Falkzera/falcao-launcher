@@ -30,15 +30,20 @@ export function ClaudeChip({ state, now }: Props) {
   const lastTs = state.sessions[0]?.last_activity ?? 0;
   const sessionCount = state.sessions.length;
 
+  const tokensLabel = showTokens ? humanizeTokens(tokens) : null;
+  const tooltip = isActive
+    ? `Claude ativo · ${sessionCount} ${sessionCount === 1 ? "sessão" : "sessões"} · ${humanizeTokens(tokens)} tokens`
+    : `${sessionCount} ${sessionCount === 1 ? "sessão" : "sessões"} · ${humanizeTokens(tokens)} tokens`;
+
   return (
     <span
       className={clsx(
-        "flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1",
+        "flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] tracking-wider ring-1",
         isActive
           ? "bg-[var(--color-claude-soft)] text-[var(--color-claude-primary)] ring-[var(--color-claude-primary)]/40"
           : "bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] ring-[var(--color-border-default)]",
       )}
-      title={`${sessionCount} sessões · ${humanizeTokens(tokens)} tokens`}
+      title={tooltip}
     >
       <motion.span
         className="h-1.5 w-1.5 rounded-full"
@@ -48,23 +53,15 @@ export function ClaudeChip({ state, now }: Props) {
         animate={isActive ? { opacity: [1, 0.4, 1] } : { opacity: 1 }}
         transition={isActive ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : undefined}
       />
-      <span>claude</span>
-      <span className="text-[var(--color-text-muted)]">·</span>
       {isActive ? (
-        <span className="normal-case text-[var(--color-claude-primary)]">
-          {formatRelative(lastTs, now)}
-        </span>
+        <span className="text-[var(--color-claude-primary)]">{formatRelative(lastTs, now)}</span>
       ) : (
-        <span className="normal-case text-[var(--color-text-secondary)]">
-          {sessionCount} {sessionCount === 1 ? "sessão" : "sessões"}
-        </span>
+        <span className="text-[var(--color-text-secondary)]">{sessionCount}</span>
       )}
-      {showTokens && (
+      {tokensLabel && (
         <>
           <span className="text-[var(--color-text-muted)]">·</span>
-          <span className="normal-case text-[var(--color-text-secondary)]">
-            {humanizeTokens(tokens)}
-          </span>
+          <span className="text-[var(--color-text-secondary)]">{tokensLabel}</span>
         </>
       )}
     </span>
