@@ -951,6 +951,7 @@ name = "falcao-launcher"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "dirs 5.0.1",
  "freedesktop-icons",
  "libc",

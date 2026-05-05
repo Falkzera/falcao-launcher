@@ -69,3 +69,13 @@ pub fn kill_pid(pid: u32, force: Option<bool>) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn spawn_claude(path: String) -> Result<(), String> {
+    let p = validate_path(&path)?;
+    let mut cmd = Command::new("ghostty");
+    cmd.arg(format!("--working-directory={}", p.display()))
+        .arg("-e")
+        .arg("claude");
+    spawn_detached(&mut cmd).map_err(|e| format!("falha ao spawnar Claude: {}", e))
+}

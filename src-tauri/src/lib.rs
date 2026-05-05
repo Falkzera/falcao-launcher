@@ -1,3 +1,4 @@
+mod claude;
 mod config;
 mod external;
 mod icon;
@@ -6,9 +7,11 @@ mod ports;
 mod process;
 mod scanner;
 
+use claude::ClaudeState;
 use process::ProcessState;
+use std::sync::Arc;
 use std::time::Duration;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 #[tauri::command]
 fn scan_projects() -> Vec<scanner::Project> {
@@ -20,6 +23,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(ProcessState::new())
+        .manage(Arc::new(ClaudeState::new()))
         .invoke_handler(tauri::generate_handler![
             scan_projects,
             scanner::list_icon_candidates,
@@ -35,10 +39,15 @@ pub fn run() {
             external::open_in_terminal,
             external::open_in_files,
             external::kill_pid,
+            external::spawn_claude,
             icon::resolve_icon,
             netstat::list_system_ports,
+            claude::claude_snapshot,
+            claude::list_claude_sessions,
+            claude::aggregate_tokens,
         ])
         .setup(|app| {
+            // System ports scanner — periódico
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(3));
@@ -60,6 +69,12 @@ pub fn run() {
                     }
                 }
             });
+
+            // Claude awareness watcher — file watch + fallback poll
+            let claude_handle = app.handle().clone();
+            let claude_state = app.state::<Arc<ClaudeState>>().inner().clone();
+            claude::start_watcher(claude_handle, claude_state);
+
             Ok(())
         })
         .run(tauri::generate_context!())

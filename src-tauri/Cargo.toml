@@ -31,4 +31,5 @@ base64 = "0.22"
 freedesktop-icons = "0.4.0"
 procfs = "0.17"
 notify = "6"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 
