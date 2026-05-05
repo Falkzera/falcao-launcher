@@ -430,6 +430,43 @@ pub fn start_watcher(app: AppHandle, state: Arc<ClaudeState>) {
     });
 }
 
+#[tauri::command]
+pub fn claude_snapshot(state: tauri::State<'_, Arc<ClaudeState>>) -> Vec<ClaudeProjectState> {
+    state.projects.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn list_claude_sessions(
+    state: tauri::State<'_, Arc<ClaudeState>>,
+    project_path: String,
+) -> Vec<ClaudeSession> {
+    state
+        .projects
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|s| s.project_path == project_path)
+        .map(|s| s.sessions.clone())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn aggregate_tokens(
+    state: tauri::State<'_, Arc<ClaudeState>>,
+    project_path: String,
+    granularity: Granularity,
+) -> Vec<TokenBucket> {
+    let sessions = state
+        .projects
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|s| s.project_path == project_path)
+        .map(|s| s.sessions.clone())
+        .unwrap_or_default();
+    aggregate_buckets(&sessions, granularity)
+}
+
 fn truncate_to_bucket(ts_ms: i64, granularity: Granularity) -> i64 {
     let dt = Utc.timestamp_millis_opt(ts_ms).single().unwrap_or(Utc.timestamp_opt(0, 0).unwrap());
     let truncated = match granularity {

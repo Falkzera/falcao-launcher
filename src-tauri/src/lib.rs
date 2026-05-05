@@ -7,6 +7,9 @@ mod process;
 mod scanner;
 
 use process::ProcessState;
+use std::sync::Arc;
+use claude::ClaudeState;
+use tauri::Manager;
 
 #[tauri::command]
 fn scan_projects() -> Vec<scanner::Project> {
@@ -18,6 +21,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(ProcessState::new())
+        .manage(Arc::new(ClaudeState::new()))
         .invoke_handler(tauri::generate_handler![
             scan_projects,
             scanner::list_icon_candidates,
@@ -32,7 +36,17 @@ pub fn run() {
             external::open_in_editor,
             external::open_in_terminal,
             icon::resolve_icon,
+            claude::claude_snapshot,
+            claude::list_claude_sessions,
+            claude::aggregate_tokens,
         ])
+        .setup(|app| {
+            // Claude awareness watcher
+            let claude_handle = app.handle().clone();
+            let claude_state = app.state::<Arc<ClaudeState>>().inner().clone();
+            claude::start_watcher(claude_handle, claude_state);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
