@@ -77,5 +77,15 @@ pub fn spawn_claude(path: String) -> Result<(), String> {
     cmd.arg(format!("--working-directory={}", p.display()))
         .arg("-e")
         .arg("claude");
+
+    // App GNOME-launched herda PATH minimalista sem ~/.local/bin onde o claude
+    // vive. Prependar explicitamente — env() preserva o resto do ambiente.
+    if let Some(home) = dirs::home_dir() {
+        let local_bin = home.join(".local").join("bin");
+        let current_path = std::env::var("PATH")
+            .unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into());
+        cmd.env("PATH", format!("{}:{}", local_bin.display(), current_path));
+    }
+
     spawn_detached(&mut cmd).map_err(|e| format!("falha ao spawnar Claude: {}", e))
 }
