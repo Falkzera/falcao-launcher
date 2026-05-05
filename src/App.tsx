@@ -12,6 +12,7 @@ import { SettingsMenu } from "./components/SettingsMenu";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
+  ClaudeProjectState,
   LogLine,
   LogPayload,
   PortPayload,
@@ -54,6 +55,8 @@ function App() {
     return saved === "list" ? "list" : "grid";
   });
   const [addingPath, setAddingPath] = useState(false);
+  const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const seqRef = useRef(0);
   const autoOpenRef = useRef(autoOpen);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -122,6 +125,10 @@ function App() {
     invoke<SystemListener[]>("list_system_ports")
       .then(setSystemPorts)
       .catch(() => {});
+
+    invoke<ClaudeProjectState[]>("claude_snapshot")
+      .then(setClaudeStates)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -186,12 +193,20 @@ function App() {
       },
     );
 
+    const unlistenClaude = listen<ClaudeProjectState[]>(
+      "claude-state",
+      (event) => {
+        setClaudeStates(event.payload);
+      },
+    );
+
     return () => {
       unlistenLog.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
       unlistenPort.then((fn) => fn());
       unlistenAllocated.then((fn) => fn());
       unlistenSystem.then((fn) => fn());
+      unlistenClaude.then((fn) => fn());
     };
   }, []);
 
@@ -221,6 +236,11 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
 
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const externalByProject = useMemo(() => {
     const sorted = [...projects].sort((a, b) => b.path.length - a.path.length);
     const map: Record<string, Array<{ port: number; pid: number }>> = {};
@@ -240,6 +260,14 @@ function App() {
     }
     return map;
   }, [systemPorts, projects]);
+
+  const claudeByProjectPath = useMemo(() => {
+    const map: Record<string, ClaudeProjectState> = {};
+    for (const s of claudeStates) {
+      map[s.project_path] = s;
+    }
+    return map;
+  }, [claudeStates]);
 
   const filteredProjects = useMemo(() => {
     let list = projects;
@@ -447,6 +475,8 @@ function App() {
                     onSelect: () => setSelected(p.id),
                     onConfigure: () => setConfiguring(p.id),
                     onToggleHidden: () => handleToggleHidden(p.id, p.hidden),
+                    claudeState: claudeByProjectPath[p.path] ?? null,
+                    now,
                   };
                   return viewMode === "grid" ? (
                     <ProjectCard key={p.id} {...propsCommon} />

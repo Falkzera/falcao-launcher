@@ -77,3 +77,37 @@ export type SystemListener = {
   cwd: string | null;
   cmd: string | null;
 };
+
+export type AggregatedUsage = {
+  input_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+  output_tokens: number;
+};
+
+export type ClaudeSession = {
+  session_id: string;
+  project_path: string;
+  git_branch: string | null;
+  title: string | null;
+  model: string | null;
+  started_at: number;
+  last_activity: number;
+  message_count: number;
+  duration_ms: number;
+  usage: AggregatedUsage;
+};
+
+export type ClaudeProjectState = {
+  project_path: string;
+  sessions: ClaudeSession[];
+  active_session_id: string | null;
+  total_usage: AggregatedUsage;
+};
+
+export type Granularity = "day" | "month" | "year";
+
+export type TokenBucket = {
+  bucket_start: number;
+  usage: AggregatedUsage;
+};
