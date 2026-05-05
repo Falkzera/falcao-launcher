@@ -67,6 +67,60 @@ pub fn is_active(last_activity: i64, now_ms: i64) -> bool {
     now_ms - last_activity <= ACTIVE_WINDOW_MS
 }
 
+#[derive(Clone, Copy)]
+pub struct ModelPricing {
+    pub input_per_1m: f64,
+    pub cache_create_per_1m: f64,
+    pub cache_read_per_1m: f64,
+    pub output_per_1m: f64,
+}
+
+pub const PRICING_AS_OF_2026_05: &[(&str, ModelPricing)] = &[
+    ("claude-opus-4-7", ModelPricing {
+        input_per_1m: 15.00,
+        cache_create_per_1m: 18.75,
+        cache_read_per_1m: 1.50,
+        output_per_1m: 75.00,
+    }),
+    ("claude-sonnet-4-6", ModelPricing {
+        input_per_1m: 3.00,
+        cache_create_per_1m: 3.75,
+        cache_read_per_1m: 0.30,
+        output_per_1m: 15.00,
+    }),
+    ("claude-haiku-4-5", ModelPricing {
+        input_per_1m: 0.80,
+        cache_create_per_1m: 1.00,
+        cache_read_per_1m: 0.08,
+        output_per_1m: 4.00,
+    }),
+];
+
+const FALLBACK_PRICING: ModelPricing = ModelPricing {
+    input_per_1m: 3.00,
+    cache_create_per_1m: 3.75,
+    cache_read_per_1m: 0.30,
+    output_per_1m: 15.00,
+};
+
+/// Resolve pricing por prefixo de model id. Ex: "claude-opus-4-7-1m" casa "claude-opus-4-7".
+pub fn pricing_for(model: &str) -> &'static ModelPricing {
+    for (key, pricing) in PRICING_AS_OF_2026_05 {
+        if model.starts_with(key) {
+            return pricing;
+        }
+    }
+    &FALLBACK_PRICING
+}
+
+pub fn cost_usd(usage: &AggregatedUsage, p: &ModelPricing) -> f64 {
+    (usage.input_tokens as f64 * p.input_per_1m
+        + usage.cache_creation_input_tokens as f64 * p.cache_create_per_1m
+        + usage.cache_read_input_tokens as f64 * p.cache_read_per_1m
+        + usage.output_tokens as f64 * p.output_per_1m)
+        / 1_000_000.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +162,41 @@ mod tests {
     fn is_active_outside_window() {
         let now = 1_700_000_000_000;
         assert!(!is_active(now - 6 * 60 * 1000, now));
+    }
+
+    #[test]
+    fn cost_opus_pure_input() {
+        let usage = AggregatedUsage {
+            input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = cost_usd(&usage, pricing_for("claude-opus-4-7"));
+        assert!((cost - 15.00).abs() < 0.0001, "got {}", cost);
+    }
+
+    #[test]
+    fn cost_opus_mixed() {
+        // 100k input, 200k cache_create, 500k cache_read, 50k output
+        // = 0.1 * 15 + 0.2 * 18.75 + 0.5 * 1.50 + 0.05 * 75
+        // = 1.5 + 3.75 + 0.75 + 3.75 = 9.75
+        let usage = AggregatedUsage {
+            input_tokens: 100_000,
+            cache_creation_input_tokens: 200_000,
+            cache_read_input_tokens: 500_000,
+            output_tokens: 50_000,
+        };
+        let cost = cost_usd(&usage, pricing_for("claude-opus-4-7"));
+        assert!((cost - 9.75).abs() < 0.0001, "got {}", cost);
+    }
+
+    #[test]
+    fn cost_unknown_model_falls_back_to_sonnet() {
+        let usage = AggregatedUsage {
+            input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        let cost = cost_usd(&usage, pricing_for("claude-future-99"));
+        // Sonnet input = 3.00
+        assert!((cost - 3.00).abs() < 0.0001, "got {}", cost);
     }
 }
