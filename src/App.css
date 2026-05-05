@@ -31,6 +31,10 @@
   --color-danger-soft: rgba(239, 68, 68, 0.13);
   --color-info: #3b82f6;
 
+  /* Claude family — sessões / IA */
+  --color-claude-primary: #a78bfa;
+  --color-claude-soft: rgba(167, 139, 250, 0.13);
+
   /* Borders */
   --color-border-subtle: rgba(255, 255, 255, 0.06);
   --color-border-default: rgba(255, 255, 255, 0.1);
@@ -72,6 +76,9 @@
 
     --color-success-soft: rgba(34, 197, 94, 0.18);
     --color-danger-soft: rgba(239, 68, 68, 0.15);
+
+    --color-claude-primary: #7c3aed;
+    --color-claude-soft: rgba(124, 58, 237, 0.13);
 
     --color-border-subtle: rgba(17, 24, 39, 0.06);
     --color-border-default: rgba(17, 24, 39, 0.11);
