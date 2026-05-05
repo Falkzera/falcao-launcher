@@ -11,6 +11,7 @@ import { Checkbox } from "./components/Checkbox";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
+  ClaudeProjectState,
   LogLine,
   LogPayload,
   PortPayload,
@@ -42,6 +43,8 @@ function App() {
     return localStorage.getItem(SHOW_HIDDEN_KEY) === "true";
   });
   const [addingPath, setAddingPath] = useState(false);
+  const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const seqRef = useRef(0);
   const autoOpenRef = useRef(autoOpen);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -94,6 +97,10 @@ function App() {
           return next;
         });
       })
+      .catch(() => {});
+
+    invoke<ClaudeProjectState[]>("claude_snapshot")
+      .then(setClaudeStates)
       .catch(() => {});
   }, []);
 
@@ -152,11 +159,19 @@ function App() {
       },
     );
 
+    const unlistenClaude = listen<ClaudeProjectState[]>(
+      "claude-state",
+      (event) => {
+        setClaudeStates(event.payload);
+      },
+    );
+
     return () => {
       unlistenLog.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
       unlistenPort.then((fn) => fn());
       unlistenAllocated.then((fn) => fn());
+      unlistenClaude.then((fn) => fn());
     };
   }, []);
 
@@ -186,6 +201,11 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
 
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const filteredProjects = useMemo(() => {
     let list = projects;
     if (!showHidden) {
@@ -202,6 +222,14 @@ function App() {
     () => projects.filter((p) => p.hidden).length,
     [projects],
   );
+
+  const claudeByProjectPath = useMemo(() => {
+    const map: Record<string, ClaudeProjectState> = {};
+    for (const s of claudeStates) {
+      map[s.project_path] = s;
+    }
+    return map;
+  }, [claudeStates]);
 
   const selectedProject = selected
     ? (projects.find((p) => p.id === selected) ?? null)
@@ -286,6 +314,8 @@ function App() {
                     onSelect={() => setSelected(p.id)}
                     onConfigure={() => setConfiguring(p.id)}
                     onToggleHidden={() => handleToggleHidden(p.id, p.hidden)}
+                    claudeState={claudeByProjectPath[p.path] ?? null}
+                    now={now}
                   />
                 ))}
               </motion.div>
