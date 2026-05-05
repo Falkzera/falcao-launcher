@@ -6,7 +6,9 @@ import vscodeIcon from "../assets/vscode.png";
 import ghosttyIcon from "../assets/ghostty.png";
 import { SystemIcon } from "./SystemIcon";
 import { cardHover, cardVariants } from "../styles/animations";
-import type { Project, ProjectStatus } from "../types";
+import type { ClaudeProjectState, Project, ProjectStatus } from "../types";
+import { ClaudeChip } from "./ClaudeChip";
+import { SpawnClaudeButton } from "./SpawnClaudeButton";
 
 type Props = {
   project: Project;
@@ -16,6 +18,8 @@ type Props = {
   onSelect: () => void;
   onConfigure: () => void;
   onToggleHidden: () => void;
+  claudeState?: ClaudeProjectState | null;
+  now?: number;
 };
 
 function initials(name: string): string {
@@ -48,6 +52,8 @@ export function ProjectCard({
   onSelect,
   onConfigure,
   onToggleHidden,
+  claudeState = null,
+  now = Date.now(),
 }: Props) {
   const runnable = project.detected_script !== null;
   const isRunning = status === "running";
@@ -237,6 +243,7 @@ export function ProjectCard({
               :{port} ↗
             </button>
           )}
+          <ClaudeChip state={claudeState} now={now} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -263,6 +270,7 @@ export function ProjectCard({
               className="h-4 w-4"
             />
           </button>
+          <SpawnClaudeButton path={project.path} />
           <motion.button
             onClick={handleAction}
             disabled={!runnable}
