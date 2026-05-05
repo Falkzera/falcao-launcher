@@ -121,6 +121,150 @@ pub fn cost_usd(usage: &AggregatedUsage, p: &ModelPricing) -> f64 {
         / 1_000_000.0
 }
 
+use chrono::DateTime;
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+
+fn parse_iso_to_unix_ms(s: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.timestamp_millis())
+}
+
+/// Parseia um arquivo JSONL inteiro de sessão e retorna o agregado.
+/// Linhas malformadas são puladas com warn.
+pub fn parse_session_file(path: &Path) -> Result<ClaudeSession, String> {
+    let session_id = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("invalid session filename: {:?}", path))?
+        .to_string();
+
+    let file = File::open(path).map_err(|e| format!("open {}: {}", path.display(), e))?;
+    let reader = BufReader::new(file);
+
+    let mut session = ClaudeSession {
+        session_id,
+        project_path: String::new(),
+        git_branch: None,
+        title: None,
+        model: None,
+        started_at: i64::MAX,
+        last_activity: 0,
+        message_count: 0,
+        duration_ms: 0,
+        usage: AggregatedUsage::default(),
+    };
+
+    let mut seen_message_ids: HashSet<String> = HashSet::new();
+
+    for line in reader.lines() {
+        let Ok(line) = line else { continue };
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Ok(value): Result<serde_json::Value, _> = serde_json::from_str(&line) else {
+            continue;
+        };
+
+        let event_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+        // Timestamps
+        if let Some(ts_str) = value.get("timestamp").and_then(|t| t.as_str()) {
+            if let Some(ts_ms) = parse_iso_to_unix_ms(ts_str) {
+                if ts_ms < session.started_at {
+                    session.started_at = ts_ms;
+                }
+                if ts_ms > session.last_activity {
+                    session.last_activity = ts_ms;
+                }
+            }
+        }
+
+        // cwd
+        if session.project_path.is_empty() {
+            if let Some(cwd) = value.get("cwd").and_then(|c| c.as_str()) {
+                session.project_path = cwd.to_string();
+            }
+        }
+
+        // gitBranch
+        if session.git_branch.is_none() {
+            if let Some(b) = value.get("gitBranch").and_then(|b| b.as_str()) {
+                session.git_branch = Some(b.to_string());
+            }
+        }
+
+        // duração — soma só durationMs em assistant events
+        if event_type == "assistant" {
+            if let Some(d) = value.get("durationMs").and_then(|d| d.as_u64()) {
+                session.duration_ms += d;
+            }
+            // model
+            if let Some(m) = value
+                .get("message")
+                .and_then(|m| m.get("model"))
+                .and_then(|m| m.as_str())
+            {
+                session.model = Some(m.to_string());
+            }
+            // usage — dedup por messageId
+            let msg_id = value
+                .get("message")
+                .and_then(|m| m.get("id"))
+                .and_then(|m| m.as_str());
+            let dedup_key = msg_id
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    value
+                        .get("uuid")
+                        .and_then(|u| u.as_str())
+                        .map(|s| s.to_string())
+                });
+            let already_counted = dedup_key
+                .as_ref()
+                .map(|k| !seen_message_ids.insert(k.clone()))
+                .unwrap_or(false);
+            if !already_counted {
+                if let Some(usage) = value.get("message").and_then(|m| m.get("usage")) {
+                    session.usage.input_tokens +=
+                        usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+                    session.usage.cache_creation_input_tokens += usage
+                        .get("cache_creation_input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    session.usage.cache_read_input_tokens += usage
+                        .get("cache_read_input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    session.usage.output_tokens +=
+                        usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+                }
+            }
+        }
+
+        // contagem de msgs
+        if event_type == "user" || event_type == "assistant" {
+            session.message_count += 1;
+        }
+
+        // título
+        if event_type == "ai-title" {
+            if let Some(t) = value.get("aiTitle").and_then(|t| t.as_str()) {
+                session.title = Some(t.to_string());
+            }
+        }
+    }
+
+    if session.started_at == i64::MAX {
+        session.started_at = 0;
+    }
+
+    Ok(session)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,6 +331,32 @@ mod tests {
         };
         let cost = cost_usd(&usage, pricing_for("claude-opus-4-7"));
         assert!((cost - 9.75).abs() < 0.0001, "got {}", cost);
+    }
+
+    use std::path::Path;
+
+    fn fixture_path() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/sample_session.jsonl")
+    }
+
+    #[test]
+    fn parse_real_session_has_basic_fields() {
+        let path = fixture_path();
+        let session = parse_session_file(&path).expect("parser must succeed");
+        assert!(!session.session_id.is_empty(), "session_id deve ser parseado do nome do arquivo");
+        assert!(session.message_count > 0);
+        assert!(session.usage.total_tokens() > 0, "fixture deve ter pelo menos 1 evento assistant com usage");
+        assert!(session.last_activity > session.started_at);
+        assert!(!session.project_path.is_empty(), "cwd deve estar populado");
+    }
+
+    #[test]
+    fn parse_real_session_extracts_title() {
+        let session = parse_session_file(&fixture_path()).unwrap();
+        // Sessão real tem ai-title — pode ser None só se a sessão for muito curta
+        // Se for None, é falha do fixture, não do parser
+        assert!(session.title.is_some(), "fixture deve conter pelo menos um evento ai-title");
     }
 
     #[test]
