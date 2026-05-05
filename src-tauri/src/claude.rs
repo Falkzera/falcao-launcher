@@ -333,6 +333,103 @@ pub fn snapshot() -> Vec<ClaudeProjectState> {
     out
 }
 
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter};
+
+pub struct ClaudeState {
+    pub projects: Mutex<Vec<ClaudeProjectState>>,
+}
+
+impl ClaudeState {
+    pub fn new() -> Self {
+        Self {
+            projects: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+fn snapshot_signature(states: &[ClaudeProjectState]) -> Vec<(String, Option<String>, u64)> {
+    states
+        .iter()
+        .map(|s| {
+            (
+                s.project_path.clone(),
+                s.active_session_id.clone(),
+                s.total_usage.total_tokens(),
+            )
+        })
+        .collect()
+}
+
+/// Refresca state, emite `claude-state` se houve diff.
+pub fn refresh_and_emit(app: &AppHandle, state: &Arc<ClaudeState>) {
+    let new_snapshot = snapshot();
+    let mut guard = state.projects.lock().unwrap();
+    let old_sig = snapshot_signature(&guard);
+    let new_sig = snapshot_signature(&new_snapshot);
+    if old_sig != new_sig {
+        *guard = new_snapshot.clone();
+        drop(guard);
+        let _ = app.emit("claude-state", &new_snapshot);
+    }
+}
+
+/// Inicia watcher (notify) + fallback poll. Não bloqueia.
+pub fn start_watcher(app: AppHandle, state: Arc<ClaudeState>) {
+    use notify::{RecursiveMode, Watcher};
+    use std::time::Duration;
+
+    let root = claude_projects_root();
+    if !root.exists() {
+        return;
+    }
+
+    // boot inicial
+    refresh_and_emit(&app, &state);
+
+    // notify watcher
+    let app_for_notify = app.clone();
+    let state_for_notify = state.clone();
+    let _watcher_thread = std::thread::spawn(move || {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = match notify::recommended_watcher(tx) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("[claude] watcher init failed: {e}; relying on poll only");
+                return;
+            }
+        };
+        if let Err(e) = watcher.watch(&root, RecursiveMode::Recursive) {
+            eprintln!("[claude] watch failed: {e}; relying on poll only");
+            return;
+        }
+        // debounce: agrupa eventos rápidos (Claude escreve várias linhas em rajada)
+        loop {
+            match rx.recv_timeout(Duration::from_millis(500)) {
+                Ok(Ok(_event)) => {
+                    // drena fila
+                    while rx.try_recv().is_ok() {}
+                    refresh_and_emit(&app_for_notify, &state_for_notify);
+                }
+                Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            }
+        }
+    });
+
+    // fallback poll a cada 30s — defensivo
+    let app_for_poll = app;
+    let state_for_poll = state;
+    tauri::async_runtime::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        interval.tick().await; // pula primeiro tick (boot já fez)
+        loop {
+            interval.tick().await;
+            refresh_and_emit(&app_for_poll, &state_for_poll);
+        }
+    });
+}
+
 fn truncate_to_bucket(ts_ms: i64, granularity: Granularity) -> i64 {
     let dt = Utc.timestamp_millis_opt(ts_ms).single().unwrap_or(Utc.timestamp_opt(0, 0).unwrap());
     let truncated = match granularity {
