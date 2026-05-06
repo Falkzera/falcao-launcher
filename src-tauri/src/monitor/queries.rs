@@ -81,6 +81,8 @@ pub struct ContainerInfo {
     pub last_cpu_pct: Option<f64>,
     pub last_mem_pct: Option<f64>,
     pub last_seen: Option<DateTime<Utc>>,
+    pub last_mem_used_bytes: Option<f64>,
+    pub last_mem_limit_bytes: Option<f64>,
 }
 
 pub async fn list_containers(pool: &Pool) -> Result<Vec<ContainerInfo>> {
@@ -93,7 +95,7 @@ pub async fn list_containers(pool: &Pool) -> Result<Vec<ContainerInfo>> {
                 resource, metric, value, ts
               FROM metrics
               WHERE source = 'container'
-                AND metric IN ('cpu_pct', 'mem_pct')
+                AND metric IN ('cpu_pct', 'mem_pct', 'mem_used_bytes', 'mem_limit_bytes')
                 AND ts > NOW() - INTERVAL '5 minutes'
               ORDER BY resource, metric, ts DESC
             )
@@ -101,7 +103,9 @@ pub async fn list_containers(pool: &Pool) -> Result<Vec<ContainerInfo>> {
               resource AS name,
               MAX(CASE WHEN metric = 'cpu_pct' THEN value END) AS cpu_pct,
               MAX(CASE WHEN metric = 'mem_pct' THEN value END) AS mem_pct,
-              MAX(ts) AS last_seen
+              MAX(ts) AS last_seen,
+              MAX(CASE WHEN metric = 'mem_used_bytes' THEN value END) AS mem_used_bytes,
+              MAX(CASE WHEN metric = 'mem_limit_bytes' THEN value END) AS mem_limit_bytes
             FROM latest
             GROUP BY resource
             ORDER BY resource
@@ -118,6 +122,8 @@ pub async fn list_containers(pool: &Pool) -> Result<Vec<ContainerInfo>> {
             last_cpu_pct: r.get(1),
             last_mem_pct: r.get(2),
             last_seen: r.get(3),
+            last_mem_used_bytes: r.get(4),
+            last_mem_limit_bytes: r.get(5),
         })
         .collect())
 }
