@@ -15,7 +15,11 @@ pub struct MonitorState {
 
 impl MonitorState {
     pub fn new() -> Self {
-        let reader_password = std::env::var("MONITOR_READER_PASSWORD").unwrap_or_default();
+        let reader_password = std::env::var("MONITOR_READER_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(read_password_from_config);
+
         Self {
             tunnel: TunnelManager::new(),
             pool: Mutex::new(None),
@@ -30,12 +34,41 @@ impl Default for MonitorState {
     }
 }
 
+/// Lê MONITOR_READER_PASSWORD de ~/.config/falcao-launcher/.env como fallback
+/// pra quando o app é lançado via atalho de teclado (sem env do shell).
+fn read_password_from_config() -> String {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return String::new(),
+    };
+    let path = std::path::PathBuf::from(home)
+        .join(".config")
+        .join("falcao-launcher")
+        .join(".env");
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return String::new(),
+    };
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("MONITOR_READER_PASSWORD=") {
+            // Aceita valor com ou sem aspas
+            return rest.trim().trim_matches('"').trim_matches('\'').to_string();
+        }
+    }
+    String::new()
+}
+
 #[tauri::command]
 pub async fn monitor_open_tunnel(state: State<'_, MonitorState>) -> Result<u16, String> {
     if state.reader_password.is_empty() {
         return Err(
             "MONITOR_READER_PASSWORD não configurada — \
-             defina em ~/Projects/falcao-launcher/.env.local ou no ambiente"
+             crie ~/.config/falcao-launcher/.env com a linha \
+             MONITOR_READER_PASSWORD=<senha> ou exporte como variável de ambiente"
                 .to_string(),
         );
     }
