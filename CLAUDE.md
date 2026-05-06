@@ -69,6 +69,7 @@ O **app já está instalado** no GNOME — abrir via Activities → "Falcão Lau
 - **Tauri serializa structs em snake_case por padrão.** Tipos TS devem casar (`detected_script`, não `detectedScript`). Args de comandos do JS pra Rust SÃO auto-convertidos camelCase ↔ snake_case (mas payloads de eventos não são).
 - **Ícones embedam em build-time** (`generate_context!()`). Trocar arquivos em `src-tauri/icons/` exige `touch src-tauri/src/lib.rs` pra forçar recompile.
 - **Configuração do usuário fica em `~/.config/falcao-launcher/config.json`** (fora do repo, nunca vai pro git). Estrutura: `{ version, projects: { [id]: { frontend_port?, backend_port?, custom_icon_path? } }, hidden: string[], extra_paths: string[] }`.
+- **Secrets do usuário ficam em `~/.config/falcao-launcher/.env`** (chmod 600, manual, nunca no repo). Hoje hospeda `MONITOR_READER_PASSWORD` (lida pelo `MonitorState::new()` como fallback quando a env var não está exportada — caso típico: app lançado via atalho do GNOME que não herda env do shell). Formato `.env` simples (linhas `KEY=VALUE`, aceita aspas, `#` é comentário).
 
 ## Layout dos `.agent.md`
 
