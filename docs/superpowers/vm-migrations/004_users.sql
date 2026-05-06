@@ -1,5 +1,19 @@
+-- ⚠️ TEMPLATE — NÃO APLICAR DIRETAMENTE
+--
+-- Este arquivo é uma versão SANITIZADA da migration 004 com placeholders no
+-- lugar das senhas. Postgres NÃO interpola variáveis em .sql; rodar este
+-- arquivo direto criaria roles com senha literal "${MONITOR_WRITER_PASSWORD}".
+--
+-- Pra aplicar de verdade na VM, renderizar com substituição shell:
+--   envsubst < 004_users.sql > /tmp/004_users.rendered.sql
+--   docker exec -i falcao-monitor-db psql -U postgres -d falcao_monitor < /tmp/004_users.rendered.sql
+--
+-- Variáveis de ambiente esperadas: MONITOR_WRITER_PASSWORD, MONITOR_READER_PASSWORD.
+--
+-- A versão real (já renderizada) vive em /opt/falcao-monitor/migrations/ na VM,
+-- com senhas inline. Esta cópia no repo serve só pra rastreabilidade do schema.
+
 -- Cria roles separados (princípio do menor privilégio)
--- ATENÇÃO: senhas são substituídas em runtime; não armazenadas no repo
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'monitor_writer') THEN
