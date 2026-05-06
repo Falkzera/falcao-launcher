@@ -32,7 +32,7 @@ export function VmTab() {
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
             VM geral · últimos 60 min
           </h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <VmMetricChart
               title="Load 1m"
               source="vm"
@@ -45,6 +45,30 @@ export function VmTab() {
               title="RAM usada"
               source="vm"
               metric="mem_used_bytes"
+              windowMinutes={60}
+              enabled={ready}
+              format={(v) => `${(v / 1e9).toFixed(2)} GB`}
+            />
+            <VmMetricChart
+              title="CPU"
+              source="vm"
+              metric="cpu_pct"
+              unit="%"
+              windowMinutes={60}
+              enabled={ready}
+            />
+            <VmMetricChart
+              title="Disco usado"
+              source="vm"
+              metric="disk_used_bytes"
+              windowMinutes={60}
+              enabled={ready}
+              format={(v) => `${(v / 1e9).toFixed(2)} GB`}
+            />
+            <VmMetricChart
+              title="Network out"
+              source="vm"
+              metric="net_tx_bytes"
               windowMinutes={60}
               enabled={ready}
               format={(v) => `${(v / 1e9).toFixed(2)} GB`}
