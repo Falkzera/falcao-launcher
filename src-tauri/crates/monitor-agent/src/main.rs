@@ -1,3 +1,4 @@
+mod collectors;
 mod db;
 
 use anyhow::Result;
