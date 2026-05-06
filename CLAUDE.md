@@ -4,6 +4,31 @@ App desktop em **Tauri 2 + React 19 + TypeScript** que lê `~/Projects/`, lista 
 
 > Já há uma skill viva em `~/.claude/skills/falcao-launcher/SKILL.md` com decisões arquiteturais, roadmap em fases, gotchas e diário de bordo. Prefira ler a skill antes de mexer aqui.
 
+## Feature: VM Monitor (Fase 1)
+
+Aba "VM" do launcher mostra status da VM Hetzner + containers + histórico de métricas em tempo real.
+
+- **Spec:** `docs/superpowers/specs/2026-05-06-vm-monitor-fase-1-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-06-vm-monitor-fase-1.md`
+- **Validation:** `docs/superpowers/vm-migrations/VALIDATION.md`
+- **Stack:** Postgres+TimescaleDB na VM (porta 5432 local-only, em `/opt/falcao-monitor/`) + agente Rust em systemd user service (`falcao-monitor-agent.service`, poll 15s) + SSH tunnel (`ssh -L`) → tokio-postgres (read-only) + Recharts no front.
+- **Skills relevantes:** `~/.claude/skills/falcao-hetzner/SKILL.md` (sub-projeto E — VM, hardening, deploy) e `~/.claude/skills/falcao-default/SKILL.md` (regra do agent.md).
+
+### Crates novos
+- `src-tauri/crates/monitor-shared/` — tipos comuns entre launcher e agente (`MetricRow`, `MetricSource`, constantes).
+- `src-tauri/crates/monitor-agent/` — binário standalone do coletor 24/7. Deploy: `./scripts/deploy-monitor-agent.sh`.
+
+### Componentes frontend novos
+- `src/components/VmTab.tsx` — entry da aba VM.
+- `src/components/VmHeader.tsx` — header de status (heartbeat, load, RAM).
+- `src/components/VmContainerGrid.tsx` + `VmContainerCard.tsx` — grid de containers com CPU/RAM por card.
+- `src/components/VmContainerDrawer.tsx` — drawer de detalhe (charts + logs on-demand).
+- `src/components/VmMetricChart.tsx` — chart Recharts reutilizável.
+
+## Documentação por pasta (agent.md)
+
+Toda pasta com código deste projeto tem um `.agent.md` que outra LLM lê antes de mexer ali. Ver regras completas em `~/.claude/skills/falcao-default/SKILL.md` (seção "agent.md").
+
 ## Como rodar
 
 ```bash
@@ -56,9 +81,16 @@ Cada pasta lógica do projeto tem um `.agent.md` explicando o que vive ali. Ler 
 | `src/` | entrypoint React, App, tema |
 | `src/assets/` | imagens importadas via JS |
 | `src/components/` | componentes React reutilizáveis |
+| `src/lib/` | utilitários TS puros (parsers, helpers de cálculo) |
 | `src/styles/` | variants Framer Motion compartilhadas |
+| `src/types/` | tipos TS por feature (espelham serde do Rust) |
 | `src-tauri/` | tudo do shell nativo Tauri |
 | `src-tauri/src/` | código Rust (commands, supervisor, scanner, config, ports, external, icon) |
+| `src-tauri/src/monitor/` | SSH tunnel + queries Postgres + commands Tauri do VM Monitor |
+| `src-tauri/crates/` | subcrates do workspace Cargo (monitor-shared, monitor-agent) |
+| `src-tauri/crates/monitor-shared/` | tipos comuns launcher ↔ agente |
+| `src-tauri/crates/monitor-agent/` | binário do coletor 24/7 (roda na VM) |
+| `src-tauri/crates/monitor-agent/src/collectors/` | coletores VM/container/Hetzner |
 | `src-tauri/capabilities/` | permissões dos plugins Tauri |
 | `src-tauri/icons/` | ícones do bundle nativo |
 

@@ -10,6 +10,7 @@ import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { SkillsView } from "./components/SkillsView";
+import { VmTab } from "./components/VmTab";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -31,7 +32,7 @@ const SHOW_OFFLINE_WORKTREES_KEY = "falcao-launcher.showOfflineWorktrees";
 const VIEW_MODE_KEY = "falcao-launcher.viewMode";
 const TOP_VIEW_KEY = "falcao-launcher.topView";
 
-type TopView = "projects" | "skills";
+type TopView = "projects" | "skills" | "vm";
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -59,7 +60,10 @@ function App() {
     return saved === "list" ? "list" : "grid";
   });
   const [topView, setTopView] = useState<TopView>(() => {
-    return localStorage.getItem(TOP_VIEW_KEY) === "skills" ? "skills" : "projects";
+    const saved = localStorage.getItem(TOP_VIEW_KEY);
+    if (saved === "skills") return "skills";
+    if (saved === "vm") return "vm";
+    return "projects";
   });
   const [addingPath, setAddingPath] = useState(false);
   const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
@@ -339,9 +343,10 @@ function App() {
     >
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="mb-6 flex items-center gap-1 border-b border-[var(--color-border-subtle)]">
-          {(["projects", "skills"] as TopView[]).map((v) => {
+          {(["projects", "skills", "vm"] as TopView[]).map((v) => {
             const isActive = topView === v;
-            const label = v === "projects" ? "Projetos" : "Skills";
+            const label =
+              v === "projects" ? "Projetos" : v === "skills" ? "Skills" : "VM";
             return (
               <button
                 key={v}
@@ -368,14 +373,20 @@ function App() {
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="page-title text-3xl">
-              {topView === "projects" ? "Falcão Launcher" : "Skills"}
+              {topView === "projects"
+                ? "Falcão Launcher"
+                : topView === "skills"
+                  ? "Skills"
+                  : "VM"}
             </h1>
             <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
               {topView === "projects"
                 ? loading
                   ? "Scanning ~/Projects…"
                   : `${projects.length} projects · ${runningCount} running${externalCount > 0 ? ` · ${externalCount} externos` : ""}${offlineWorktreeCount > 0 && !showOfflineWorktrees ? ` · ${offlineWorktreeCount} worktrees offline` : ""}${hiddenCount > 0 && !showHidden ? ` · ${hiddenCount} ocultos` : ""}`
-                : "skills instaladas em ~/.claude/"}
+                : topView === "skills"
+                  ? "skills instaladas em ~/.claude/"
+                  : "falcao-main · CX23 · 162.55.217.189"}
             </p>
           </div>
           <div className={topView === "projects" ? "flex items-center gap-2" : "hidden"}>
@@ -474,6 +485,8 @@ function App() {
 
         {topView === "skills" ? (
           <SkillsView />
+        ) : topView === "vm" ? (
+          <VmTab />
         ) : (
           <>
         {error && (
