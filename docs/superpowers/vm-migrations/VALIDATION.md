@@ -8,3 +8,4 @@ Executado em 2026-05-06T14:39:25Z.
 - Users: monitor_writer (INSERT only), monitor_reader (SELECT only)
 - Validação isolation: writer não lê, reader não escreve. ✅
 - Imagem usada: `timescale/timescaledb-ha:pg16` (a tag `pg16-latest` do plano original foi descontinuada no Docker Hub; `pg16` é o equivalente atual).
+- Volume corrigido: `./data:/home/postgres/pgdata` (a imagem `timescaledb-ha` usa `PGDATA=/home/postgres/pgdata/data`, não `/var/lib/postgresql/data` como o plano assumia — sem essa correção os dados não persistiam no host).
