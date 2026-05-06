@@ -50,4 +50,12 @@ base64 = "0.22"
 freedesktop-icons = "0.4.0"
 procfs = "0.17"
 notify = "6"
-chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+chrono = { workspace = true }
+russh = { workspace = true }
+russh-keys = "0.45"
+tokio-postgres = { workspace = true }
+deadpool-postgres = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+monitor-shared = { path = "crates/monitor-shared" }
+urlencoding = "2"
