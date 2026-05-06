@@ -10,6 +10,10 @@ mod scanner;
 mod skills;
 
 use claude::ClaudeState;
+use monitor::commands::{
+    monitor_close_tunnel, monitor_fetch_logs, monitor_list_containers, monitor_metric_series,
+    monitor_open_tunnel, monitor_vm_status, MonitorState,
+};
 use process::ProcessState;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,6 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(ProcessState::new())
         .manage(Arc::new(ClaudeState::new()))
+        .manage(MonitorState::new())
         .invoke_handler(tauri::generate_handler![
             scan_projects,
             scanner::list_icon_candidates,
@@ -49,6 +54,12 @@ pub fn run() {
             claude::aggregate_tokens,
             skills::list_skills,
             skills::read_skill_content,
+            monitor_open_tunnel,
+            monitor_close_tunnel,
+            monitor_vm_status,
+            monitor_list_containers,
+            monitor_metric_series,
+            monitor_fetch_logs,
         ])
         .setup(|app| {
             // System ports scanner — periódico

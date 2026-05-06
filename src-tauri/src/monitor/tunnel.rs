@@ -20,32 +20,34 @@ impl TunnelManager {
     }
 
     pub async fn open(&self) -> Result<u16> {
-        let mut guard = self.child.lock().unwrap();
-        if guard.is_some() {
-            return Ok(LOCAL_PORT);
+        // Scope lock para não atravessar o .await abaixo
+        {
+            let mut guard = self.child.lock().unwrap();
+            if guard.is_some() {
+                return Ok(LOCAL_PORT);
+            }
+
+            let child = Command::new("ssh")
+                .args([
+                    "-N",
+                    "-L",
+                    &format!("{}:localhost:{}", LOCAL_PORT, REMOTE_PORT),
+                    "-o",
+                    "ServerAliveInterval=30",
+                    "-o",
+                    "ExitOnForwardFailure=yes",
+                    VM_HOST,
+                ])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("spawn ssh")?;
+
+            *guard = Some(child);
         }
 
-        let child = Command::new("ssh")
-            .args([
-                "-N",
-                "-L",
-                &format!("{}:localhost:{}", LOCAL_PORT, REMOTE_PORT),
-                "-o",
-                "ServerAliveInterval=30",
-                "-o",
-                "ExitOnForwardFailure=yes",
-                VM_HOST,
-            ])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .context("spawn ssh")?;
-
-        *guard = Some(child);
-
         // Pequeno delay pra tunnel ficar pronto
-        drop(guard);
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         Ok(LOCAL_PORT)
     }
