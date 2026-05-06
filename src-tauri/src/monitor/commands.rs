@@ -32,6 +32,14 @@ impl Default for MonitorState {
 
 #[tauri::command]
 pub async fn monitor_open_tunnel(state: State<'_, MonitorState>) -> Result<u16, String> {
+    if state.reader_password.is_empty() {
+        return Err(
+            "MONITOR_READER_PASSWORD não configurada — \
+             defina em ~/Projects/falcao-launcher/.env.local ou no ambiente"
+                .to_string(),
+        );
+    }
+
     let port = state.tunnel.open().await.map_err(|e| e.to_string())?;
     let url = format!(
         "postgresql://monitor_reader:{}@localhost:{}/falcao_monitor",
@@ -114,6 +122,18 @@ pub async fn monitor_metric_series(
 
 #[tauri::command]
 pub async fn monitor_fetch_logs(container: String, lines: u32) -> Result<String, String> {
+    // Validate container name to prevent shell injection
+    if container.is_empty()
+        || !container
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+    {
+        return Err(format!("invalid container name: {container}"));
+    }
+    if lines == 0 || lines > 10_000 {
+        return Err("lines must be between 1 and 10000".to_string());
+    }
+
     let output = tokio::process::Command::new("ssh")
         .args([
             "falcao@162.55.217.189",

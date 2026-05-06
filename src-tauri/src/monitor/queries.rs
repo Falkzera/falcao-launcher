@@ -29,6 +29,14 @@ pub async fn fetch_metric_series(
     until: Option<DateTime<Utc>>,
     bucket: Option<&str>, // '1 minute' | '1 hour' | '1 day' | None (raw)
 ) -> Result<Vec<MetricPoint>> {
+    // Whitelist allowed bucket values (TimescaleDB time_bucket interval)
+    if let Some(b) = bucket {
+        match b {
+            "1 minute" | "5 minutes" | "1 hour" | "1 day" => {}
+            _ => return Err(anyhow::anyhow!("invalid bucket: {b}")),
+        }
+    }
+
     let client = pool.get().await?;
     let until_v = until.unwrap_or_else(Utc::now);
 
