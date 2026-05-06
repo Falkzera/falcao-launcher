@@ -5,6 +5,7 @@ mod db;
 use anyhow::{Context, Result};
 use buffer::Buffer;
 use chrono::Utc;
+use collectors::vm::VmCollectorState;
 use monitor_shared::{HOST_NAME, POLL_INTERVAL_SECS};
 use std::time::Duration;
 use tokio::time::{interval, MissedTickBehavior};
@@ -33,6 +34,7 @@ async fn main() -> Result<()> {
     tracing::info!(version = AGENT_VERSION, "falcao-monitor-agent starting");
 
     let mut buf = Buffer::default();
+    let mut vm_state = VmCollectorState::default();
 
     let mut tick = interval(Duration::from_secs(POLL_INTERVAL_SECS));
     tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -42,10 +44,12 @@ async fn main() -> Result<()> {
         let ts = Utc::now();
         let mut batch = Vec::new();
 
-        // Coletores rodam em paralelo — latência do ciclo é a do mais lento (~800ms)
-        // ao invés da soma sequencial (~1-2s).
-        let (vm_res, ctr_res, hz_res) = tokio::join!(
-            collectors::vm::collect(ts),
+        // vm::collect agora é cheap (sem sleep), então rodamos primeiro pra
+        // segurar o &mut vm_state, e depois disparamos os dois pesados em
+        // paralelo. Ordem importa pra precisão do cpu_pct: a leitura de
+        // /proc/stat acontece ANTES de docker stats e hcloud queimarem CPU.
+        let vm_res = collectors::vm::collect(ts, &mut vm_state).await;
+        let (ctr_res, hz_res) = tokio::join!(
             collectors::container::collect(ts),
             collectors::hetzner::collect(ts),
         );
