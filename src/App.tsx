@@ -9,6 +9,7 @@ import { ProjectDetailDrawer } from "./components/ProjectDetailDrawer";
 import { ProjectConfigModal } from "./components/ProjectConfigModal";
 import { AddProjectModal } from "./components/AddProjectModal";
 import { SettingsMenu } from "./components/SettingsMenu";
+import { SkillsView } from "./components/SkillsView";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -28,6 +29,9 @@ const AUTO_OPEN_KEY = "falcao-launcher.autoOpenBrowser";
 const SHOW_HIDDEN_KEY = "falcao-launcher.showHidden";
 const SHOW_OFFLINE_WORKTREES_KEY = "falcao-launcher.showOfflineWorktrees";
 const VIEW_MODE_KEY = "falcao-launcher.viewMode";
+const TOP_VIEW_KEY = "falcao-launcher.topView";
+
+type TopView = "projects" | "skills";
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -53,6 +57,9 @@ function App() {
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY);
     return saved === "list" ? "list" : "grid";
+  });
+  const [topView, setTopView] = useState<TopView>(() => {
+    return localStorage.getItem(TOP_VIEW_KEY) === "skills" ? "skills" : "projects";
   });
   const [addingPath, setAddingPath] = useState(false);
   const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
@@ -80,6 +87,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem(TOP_VIEW_KEY, topView);
+  }, [topView]);
 
   async function refreshProjects() {
     try {
@@ -324,19 +335,50 @@ function App() {
   return (
     <main
       className="min-h-screen transition-[padding] duration-200"
-      style={{ paddingRight: drawerOpen ? "480px" : "0" }}
+      style={{ paddingRight: drawerOpen && topView === "projects" ? "480px" : "0" }}
     >
       <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mb-6 flex items-center gap-1 border-b border-[var(--color-border-subtle)]">
+          {(["projects", "skills"] as TopView[]).map((v) => {
+            const isActive = topView === v;
+            const label = v === "projects" ? "Projetos" : "Skills";
+            return (
+              <button
+                key={v}
+                onClick={() => setTopView(v)}
+                className={
+                  isActive
+                    ? "relative px-4 py-2 text-sm font-semibold text-[var(--color-text-primary)]"
+                    : "relative px-4 py-2 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+                }
+              >
+                {label}
+                {isActive && (
+                  <motion.span
+                    layoutId="top-view-underline"
+                    className="absolute bottom-[-1px] left-3 right-3 h-[2px] bg-[var(--color-accent-primary)]"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="page-title text-3xl">Falcão Launcher</h1>
+            <h1 className="page-title text-3xl">
+              {topView === "projects" ? "Falcão Launcher" : "Skills"}
+            </h1>
             <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
-              {loading
-                ? "Scanning ~/Projects…"
-                : `${projects.length} projects · ${runningCount} running${externalCount > 0 ? ` · ${externalCount} externos` : ""}${offlineWorktreeCount > 0 && !showOfflineWorktrees ? ` · ${offlineWorktreeCount} worktrees offline` : ""}${hiddenCount > 0 && !showHidden ? ` · ${hiddenCount} ocultos` : ""}`}
+              {topView === "projects"
+                ? loading
+                  ? "Scanning ~/Projects…"
+                  : `${projects.length} projects · ${runningCount} running${externalCount > 0 ? ` · ${externalCount} externos` : ""}${offlineWorktreeCount > 0 && !showOfflineWorktrees ? ` · ${offlineWorktreeCount} worktrees offline` : ""}${hiddenCount > 0 && !showHidden ? ` · ${hiddenCount} ocultos` : ""}`
+                : "skills instaladas em ~/.claude/"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className={topView === "projects" ? "flex items-center gap-2" : "hidden"}>
             <div className="relative">
               <input
                 ref={searchRef}
@@ -430,6 +472,10 @@ function App() {
           </div>
         </header>
 
+        {topView === "skills" ? (
+          <SkillsView />
+        ) : (
+          <>
         {error && (
           <div className="rounded-md border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm text-[var(--color-danger)]">
             {error}
@@ -488,9 +534,11 @@ function App() {
             )}
           </>
         )}
+          </>
+        )}
       </div>
 
-      {selectedProject && (
+      {selectedProject && topView === "projects" && (
         <ProjectDetailDrawer
           project={selectedProject}
           status={statuses[selectedProject.id] ?? "idle"}

@@ -111,3 +111,17 @@ export type TokenBucket = {
   bucket_start: number;
   usage: AggregatedUsage;
 };
+
+export type SkillSource = "user" | "plugin";
+
+export type Skill = {
+  id: string;
+  name: string;
+  description: string | null;
+  source: SkillSource;
+  plugin: string | null;
+  path: string;
+  size_bytes: number;
+  modified_at: number;
+  line_count: number;
+};

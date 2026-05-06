@@ -6,6 +6,7 @@ mod netstat;
 mod ports;
 mod process;
 mod scanner;
+mod skills;
 
 use claude::ClaudeState;
 use process::ProcessState;
@@ -45,6 +46,8 @@ pub fn run() {
             claude::claude_snapshot,
             claude::list_claude_sessions,
             claude::aggregate_tokens,
+            skills::list_skills,
+            skills::read_skill_content,
         ])
         .setup(|app| {
             // System ports scanner — periódico
