@@ -23,8 +23,13 @@ export function UsageBar({
   const fmtV = formatValue ?? ((v: number) => v.toString());
   const fmtM = formatMax ?? fmtV;
 
-  // Sem dados ainda → mostra "—" no lugar da barra.
-  if (value === null || max === null) {
+  // Sem dados ou dados corrompidos (NaN/Infinity) → mostra "—" no lugar da barra.
+  if (
+    value === null ||
+    max === null ||
+    !Number.isFinite(value) ||
+    !Number.isFinite(max)
+  ) {
     return (
       <div>
         <div className="flex items-baseline justify-between gap-2">

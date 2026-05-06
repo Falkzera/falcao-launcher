@@ -17,11 +17,12 @@ export function toRate(points: MetricPoint[]): MetricPoint[] {
     const prev = points[i - 1];
     const curr = points[i];
     if (prev.value === null || curr.value === null) continue;
+    if (!Number.isFinite(prev.value) || !Number.isFinite(curr.value)) continue;
     const dt =
       (new Date(curr.ts).getTime() - new Date(prev.ts).getTime()) / 1000;
-    if (dt <= 0) continue;
+    if (!Number.isFinite(dt) || dt <= 0) continue;
     const dv = curr.value - prev.value;
-    if (dv < 0) continue; // counter wrap
+    if (!Number.isFinite(dv) || dv < 0) continue; // counter wrap or non-finite
     out.push({ ts: curr.ts, value: dv / dt });
   }
   return out;

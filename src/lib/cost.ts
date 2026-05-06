@@ -7,6 +7,10 @@ export function forecastMonthly(
   costNow: number,
   vmAgeHours: number,
 ): number | null {
+  // Defensive: NaN/Infinity inputs ou custo negativo (impossível com agente
+  // atual, mas trivial de blindar) viram null silencioso.
+  if (!Number.isFinite(costNow) || !Number.isFinite(vmAgeHours)) return null;
+  if (costNow < 0) return null;
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const hoursThisMonth = (now.getTime() - startOfMonth.getTime()) / 3_600_000;
