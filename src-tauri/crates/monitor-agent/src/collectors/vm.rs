@@ -4,10 +4,20 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use monitor_shared::{MetricRow, MetricSource, HOST_NAME};
 use std::fs;
-use std::time::Duration;
 use tokio::process::Command;
 
-pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
+/// Estado preservado entre iterações do loop do agente. Usado pra calcular
+/// delta de /proc/stat com janela ~POLL_INTERVAL_SECS, sem depender de sleep
+/// in-call (que entrava em paralelo com docker stats / hcloud e inflava cpu_pct).
+#[derive(Debug, Default)]
+pub struct VmCollectorState {
+    pub prev_cpu: Option<CpuStat>,
+}
+
+pub async fn collect(
+    ts: DateTime<Utc>,
+    state: &mut VmCollectorState,
+) -> Result<Vec<MetricRow>> {
     let mut out = Vec::with_capacity(16);
 
     // mem + swap
@@ -45,9 +55,17 @@ pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
         }
     }
 
-    // cpu_pct (delta entre duas leituras do /proc/stat)
-    if let Some(v) = read_cpu_pct().await {
-        out.push(metric(ts, "cpu_pct", v));
+    // cpu_pct — delta entre o snapshot da iteração anterior (~15s atrás) e agora.
+    // Janela longa e sem interferência de docker stats / hcloud, que rodam
+    // depois daqui no main loop.
+    if let Some(snap) = read_proc_stat_now() {
+        if let Some(prev) = state.prev_cpu.replace(snap) {
+            if let Some(pct) = cpu_pct_from(prev, snap) {
+                out.push(metric(ts, "cpu_pct", pct));
+            }
+        }
+        // Primeira iteração: prev_cpu era None, então não emite cpu_pct
+        // (precisamos de dois snapshots pra calcular delta).
     }
 
     // disk (df / -k)
@@ -87,7 +105,7 @@ fn parse_swap_used_kib(meminfo: &str) -> Option<u64> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct CpuStat {
+pub struct CpuStat {
     idle: u64,
     total: u64,
 }
@@ -121,13 +139,9 @@ fn cpu_pct_from(prev: CpuStat, cur: CpuStat) -> Option<f64> {
     Some(100.0 * (1.0 - idle_d as f64 / total_d as f64))
 }
 
-async fn read_cpu_pct() -> Option<f64> {
-    let s1 = fs::read_to_string("/proc/stat").ok()?;
-    let snap1 = parse_proc_stat(&s1)?;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let s2 = fs::read_to_string("/proc/stat").ok()?;
-    let snap2 = parse_proc_stat(&s2)?;
-    cpu_pct_from(snap1, snap2)
+fn read_proc_stat_now() -> Option<CpuStat> {
+    let s = std::fs::read_to_string("/proc/stat").ok()?;
+    parse_proc_stat(&s)
 }
 
 /// `df / -k` → última linha → cols 3 (used) e 4 (avail) em KiB → bytes.
@@ -316,8 +330,30 @@ Inter-| Receive | Transmit
             eprintln!("skip: /proc/meminfo not present");
             return;
         }
-        let rows = collect(Utc::now()).await.unwrap();
+        let mut state = VmCollectorState::default();
+        let rows = collect(Utc::now(), &mut state).await.unwrap();
         assert!(rows.len() >= 3, "expected at least mem_total/used/avail");
         assert!(rows.iter().any(|r| r.metric == "mem_total_bytes"));
+    }
+
+    #[tokio::test]
+    async fn first_iteration_skips_cpu_pct() {
+        if !std::path::Path::new("/proc/stat").exists() {
+            eprintln!("skip: /proc/stat not present");
+            return;
+        }
+        let mut state = VmCollectorState::default();
+        let rows = collect(Utc::now(), &mut state).await.unwrap();
+        assert!(
+            rows.iter().all(|r| r.metric != "cpu_pct"),
+            "first iteration should not emit cpu_pct (no prev snapshot)"
+        );
+
+        // Segunda iteração já tem prev_cpu, então emite cpu_pct.
+        let rows = collect(Utc::now(), &mut state).await.unwrap();
+        assert!(
+            rows.iter().any(|r| r.metric == "cpu_pct"),
+            "second iteration should emit cpu_pct"
+        );
     }
 }
