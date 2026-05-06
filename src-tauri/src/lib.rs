@@ -2,6 +2,7 @@ mod claude;
 mod config;
 mod external;
 mod icon;
+mod monitor;
 mod netstat;
 mod ports;
 mod process;
