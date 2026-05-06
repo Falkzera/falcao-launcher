@@ -29,7 +29,7 @@ Executado em 2026-05-06T22:35Z, agente rodando há 23 min após último redeploy
 - [x] `.agent.md` em todas as pastas novas (7 pastas)
 - [x] Migrations versionadas em `docs/superpowers/vm-migrations/` (001-004)
 - [x] Buffer in-memory funcional (resiliência quando DB cai — código + testes)
-- [ ] **Heartbeat persistindo na tabela `agent_heartbeat`** ⚠️ — ver "Known issues" abaixo
+- [x] **Heartbeat persistindo na tabela `agent_heartbeat`** ✅ — corrigido (ver nota abaixo)
 
 ### Disk usage observado
 
@@ -39,12 +39,11 @@ Executado em 2026-05-06T22:35Z, agente rodando há 23 min após último redeploy
 
 ### Known issues / Phase 2 backlog
 
-**1. Heartbeat não persiste (bug encontrado na validação E4):**
-- Migration `004_users.sql` concedeu `INSERT` em `metrics` pra `monitor_writer` mas **não** em `agent_heartbeat`.
-- Erro silenciado por `let _ = db::write_heartbeat(...)` em `monitor-agent/src/main.rs:74`.
-- Tabela `agent_heartbeat` está com 0 rows apesar do agente tentar INSERT a cada 15s.
-- **Fix sugerido (Phase 2):** rodar `GRANT INSERT, UPDATE ON agent_heartbeat TO monitor_writer;` na VM + remover o `let _ =` em main.rs (deixar warn em caso de erro real).
-- **Impacto:** o frontend mostra "agente offline" se depender só do heartbeat. Mitigação atual: o frontend pode olhar o `MAX(ts)` da tabela `metrics` pra inferir liveness.
+**1. Heartbeat não persiste — RESOLVIDO (fix aplicado nesta mesma janela de validação):**
+- Causa raiz: `monitor_writer` tinha `INSERT` em `metrics` mas faltava `INSERT/UPDATE` em `agent_heartbeat`. Adicionalmente, `INSERT ... ON CONFLICT DO UPDATE` exige `SELECT` na tabela alvo (PG precisa ler a row em conflito); sem isso o upsert também falhava silenciosamente.
+- Erro estava silenciado por `let _ = db::write_heartbeat(...)` em `monitor-agent/src/main.rs`.
+- **Fix:** `GRANT INSERT, UPDATE, SELECT ON agent_heartbeat TO monitor_writer;` aplicado na VM + atualizado em `004_users.sql`. Em `main.rs`, troca de `let _ =` por `if let Err(e) ... tracing::warn!(...)` pra surface erros futuros no journald.
+- **Validação pós-fix:** linha presente em `agent_heartbeat` com `host=falcao-main`, `agent_version=0.1.0`, `last_seen` atualizado a cada ciclo (15s). Sem mais warns no journal após o redeploy.
 
 **2. Spec gaps documentados como Phase 2 polish backlog:**
 - VM section: 2 charts entregues (Load + RAM); spec lista 4 (faltam CPU%, Disk, Network).

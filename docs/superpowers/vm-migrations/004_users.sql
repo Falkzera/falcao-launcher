@@ -29,6 +29,8 @@ GRANT CONNECT ON DATABASE falcao_monitor TO monitor_writer;
 GRANT USAGE ON SCHEMA public TO monitor_writer;
 GRANT INSERT ON metrics, agent_heartbeat TO monitor_writer;
 GRANT UPDATE ON agent_heartbeat TO monitor_writer;
+-- SELECT é necessário pro upsert (ON CONFLICT ... DO UPDATE precisa ler a row em conflito).
+GRANT SELECT ON agent_heartbeat TO monitor_writer;
 
 GRANT CONNECT ON DATABASE falcao_monitor TO monitor_reader;
 GRANT USAGE ON SCHEMA public TO monitor_reader;

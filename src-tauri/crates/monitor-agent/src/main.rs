@@ -71,7 +71,9 @@ async fn main() -> Result<()> {
         match db::insert_batch(&pool, &pending).await {
             Ok(()) => {
                 tracing::debug!(rows = count, "flushed batch");
-                let _ = db::write_heartbeat(&pool, HOST_NAME, AGENT_VERSION).await;
+                if let Err(e) = db::write_heartbeat(&pool, HOST_NAME, AGENT_VERSION).await {
+                    tracing::warn!("heartbeat write failed: {e:#}");
+                }
             }
             Err(e) => {
                 tracing::warn!(rows = count, "DB write failed, re-buffering: {e:#}");
