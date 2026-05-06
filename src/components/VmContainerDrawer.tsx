@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { monitorApi } from "../lib/monitor";
 import { slideInRight } from "../styles/animations";
+import type { WindowKey } from "../types/monitor";
+import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { VmMetricChart } from "./VmMetricChart";
 
 interface Props {
@@ -9,6 +11,14 @@ interface Props {
   enabled: boolean;
   onClose: () => void;
 }
+
+const WINDOW_LABELS: Record<WindowKey, string> = {
+  "1h": "últimos 60 min",
+  "6h": "últimas 6h",
+  "24h": "últimas 24h",
+  "7d": "últimos 7 dias",
+  "30d": "últimos 30 dias",
+};
 
 export function VmContainerDrawer({
   containerName,
@@ -18,6 +28,8 @@ export function VmContainerDrawer({
   const [logs, setLogs] = useState<string | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
+  const [drawerWindow, setDrawerWindow] = useState<WindowKey>("1h");
+  const params = windowToParams(drawerWindow);
 
   const fetchLogs = async () => {
     setLoadingLogs(true);
@@ -61,9 +73,15 @@ export function VmContainerDrawer({
 
       <div className="flex-1 space-y-6 overflow-y-auto p-5">
         <section>
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
-            Métricas · últimos 60 min
-          </h4>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+              Métricas · {WINDOW_LABELS[drawerWindow]}
+            </h4>
+            <TimeWindowSelector
+              value={drawerWindow}
+              onChange={setDrawerWindow}
+            />
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <VmMetricChart
               title="CPU"
@@ -71,7 +89,8 @@ export function VmContainerDrawer({
               resource={containerName}
               metric="cpu_pct"
               unit="%"
-              windowMinutes={60}
+              windowMinutes={params.minutes}
+              bucket={params.bucket}
               enabled={enabled}
               pollMs={5_000}
             />
@@ -81,7 +100,8 @@ export function VmContainerDrawer({
               resource={containerName}
               metric="mem_pct"
               unit="%"
-              windowMinutes={60}
+              windowMinutes={params.minutes}
+              bucket={params.bucket}
               enabled={enabled}
               pollMs={5_000}
             />
