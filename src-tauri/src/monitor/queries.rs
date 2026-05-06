@@ -128,6 +128,31 @@ pub struct VmStatus {
     pub agent_version: Option<String>,
     pub last_cpu_pct: Option<f64>,
     pub last_mem_pct: Option<f64>,
+    pub last_mem_used_bytes: Option<f64>,
+    pub last_mem_total_bytes: Option<f64>,
+    pub last_disk_used_bytes: Option<f64>,
+    pub last_disk_avail_bytes: Option<f64>,
+    pub last_hetzner_outgoing_bytes: Option<f64>,
+    pub last_hetzner_included_bytes: Option<f64>,
+    pub cost_accumulated_usd: Option<f64>,
+    pub vm_age_hours: Option<f64>,
+}
+
+/// Helper: pega o último valor de uma métrica `(source, metric)` (sem resource).
+async fn latest_metric(
+    client: &deadpool_postgres::Client,
+    source: &str,
+    metric: &str,
+) -> Result<Option<f64>> {
+    let row = client
+        .query_opt(
+            "SELECT value FROM metrics WHERE source = $1 AND metric = $2
+             ORDER BY ts DESC LIMIT 1",
+            &[&source, &metric],
+        )
+        .await
+        .with_context(|| format!("latest_metric({source},{metric})"))?;
+    Ok(row.and_then(|r| r.get::<_, Option<f64>>(0)))
 }
 
 pub async fn vm_status(pool: &Pool) -> Result<VmStatus> {
@@ -143,32 +168,15 @@ pub async fn vm_status(pool: &Pool) -> Result<VmStatus> {
         None => (None, None),
     };
 
-    let cpu = client
-        .query_opt(
-            "SELECT value FROM metrics WHERE source = 'vm' AND metric = 'load_1m'
-             ORDER BY ts DESC LIMIT 1",
-            &[],
-        )
-        .await?
-        .and_then(|r| r.get::<_, Option<f64>>(0));
-
-    let mem_used = client
-        .query_opt(
-            "SELECT value FROM metrics WHERE source = 'vm' AND metric = 'mem_used_bytes'
-             ORDER BY ts DESC LIMIT 1",
-            &[],
-        )
-        .await?
-        .and_then(|r| r.get::<_, Option<f64>>(0));
-
-    let mem_total = client
-        .query_opt(
-            "SELECT value FROM metrics WHERE source = 'vm' AND metric = 'mem_total_bytes'
-             ORDER BY ts DESC LIMIT 1",
-            &[],
-        )
-        .await?
-        .and_then(|r| r.get::<_, Option<f64>>(0));
+    let cpu = latest_metric(&client, "vm", "load_1m").await?;
+    let mem_used = latest_metric(&client, "vm", "mem_used_bytes").await?;
+    let mem_total = latest_metric(&client, "vm", "mem_total_bytes").await?;
+    let disk_used = latest_metric(&client, "vm", "disk_used_bytes").await?;
+    let disk_avail = latest_metric(&client, "vm", "disk_avail_bytes").await?;
+    let hetzner_outgoing = latest_metric(&client, "hetzner", "outgoing_traffic_bytes").await?;
+    let hetzner_included = latest_metric(&client, "hetzner", "included_traffic_bytes").await?;
+    let cost_accumulated = latest_metric(&client, "hetzner", "cost_accumulated_usd").await?;
+    let vm_age_hours = latest_metric(&client, "hetzner", "vm_age_hours").await?;
 
     let mem_pct = mem_used
         .zip(mem_total)
@@ -179,5 +187,13 @@ pub async fn vm_status(pool: &Pool) -> Result<VmStatus> {
         agent_version,
         last_cpu_pct: cpu,
         last_mem_pct: mem_pct,
+        last_mem_used_bytes: mem_used,
+        last_mem_total_bytes: mem_total,
+        last_disk_used_bytes: disk_used,
+        last_disk_avail_bytes: disk_avail,
+        last_hetzner_outgoing_bytes: hetzner_outgoing,
+        last_hetzner_included_bytes: hetzner_included,
+        cost_accumulated_usd: cost_accumulated,
+        vm_age_hours,
     })
 }
