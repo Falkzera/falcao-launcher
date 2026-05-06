@@ -1,3 +1,5 @@
+mod db;
+
 use anyhow::Result;
 
 #[tokio::main]
