@@ -1,0 +1,20 @@
+[package]
+name = "monitor-agent"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "falcao-monitor-agent"
+path = "src/main.rs"
+
+[dependencies]
+monitor-shared = { path = "../monitor-shared" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+tokio-postgres = { workspace = true }
+deadpool-postgres = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
