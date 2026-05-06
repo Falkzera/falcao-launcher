@@ -29,7 +29,7 @@ Executado em 2026-05-06T22:35Z, agente rodando há 23 min após último redeploy
 - [x] `.agent.md` em todas as pastas novas (7 pastas)
 - [x] Migrations versionadas em `docs/superpowers/vm-migrations/` (001-004)
 - [x] Buffer in-memory funcional (resiliência quando DB cai — código + testes)
-- [x] **Heartbeat persistindo na tabela `agent_heartbeat`** ✅ — corrigido (ver nota abaixo)
+- [x] **Heartbeat persistindo na tabela `agent_heartbeat`** ✅ — corrigido em `5e185cc` (ver nota abaixo)
 
 ### Disk usage observado
 
