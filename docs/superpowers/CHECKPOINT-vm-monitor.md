@@ -10,9 +10,21 @@
 ### Phases
 - ✅ **Phase A** — Postgres+TimescaleDB na VM (concluída + revisada)
 - ✅ **Phase B** — Rust agent + systemd (concluída, agente rodando 24/7)
-- ⏳ **Phase C** — SSH tunnel + Tauri commands (próxima)
-- ⏳ **Phase D** — Frontend (aba VM)
-- ⏳ **Phase E** — Documentação + validação final + PR
+- ✅ **Phase C** — SSH tunnel + Tauri commands (concluída + security fixes)
+- ✅ **Phase D** — Frontend (aba VM) — concluída (com spec gaps Phase 2 abaixo)
+- ✅ **Phase E** — Docs + validação + PR — concluída
+
+### Status final: PR #1 aberto, NÃO mergeado (Falcão decide)
+https://github.com/Falkzera/falcao-launcher/pull/1
+
+### Spec gaps marcados como Phase 2 backlog
+- VM section só tem 2 charts (Load + RAM) — spec lista 4 (faltam CPU%, Disk, Network)
+- Header sem custo estimado nem uptime explícito
+- Drawer sem time-window selector (1h/6h/24h/7d/30d) — hardcoded 60min
+- Drawer sem network chart, sem health endpoint status
+
+### Bug crítico encontrado e corrigido durante validação
+- **Heartbeat não persistia:** `monitor_writer` faltava SELECT/INSERT/UPDATE em `agent_heartbeat`. SELECT é necessário porque `INSERT ON CONFLICT DO UPDATE` lê a linha em conflito. Erro silenciado por `let _ = ...` no main loop. Fix em commit 5e185cc + GRANTs aplicados via runtime.
 
 ### Credenciais (NÃO COMMITAR)
 
