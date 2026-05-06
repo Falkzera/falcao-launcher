@@ -7,7 +7,7 @@ use buffer::Buffer;
 use chrono::Utc;
 use monitor_shared::{HOST_NAME, POLL_INTERVAL_SECS};
 use std::time::Duration;
-use tokio::time::sleep;
+use tokio::time::{interval, MissedTickBehavior};
 
 const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -20,26 +20,45 @@ async fn main() -> Result<()> {
         )
         .init();
 
+    // Lê DATABASE_URL e converte imediatamente em tokio_postgres::Config
+    // pra que o string original (com password) saia de scope. Display de Config
+    // não inclui password, então nenhum erro logado vaza credencial.
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL not set")?;
-    let pool = db::build_pool(&database_url)?;
+    let cfg: tokio_postgres::Config = database_url
+        .parse()
+        .context("invalid DATABASE_URL format")?;
+    drop(database_url);
+    let pool = db::build_pool(cfg)?;
 
     tracing::info!(version = AGENT_VERSION, "falcao-monitor-agent starting");
 
     let mut buf = Buffer::default();
 
+    let mut tick = interval(Duration::from_secs(POLL_INTERVAL_SECS));
+    tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
     loop {
+        tick.tick().await;
         let ts = Utc::now();
         let mut batch = Vec::new();
 
-        match collectors::vm::collect(ts).await {
+        // Coletores rodam em paralelo — latência do ciclo é a do mais lento (~800ms)
+        // ao invés da soma sequencial (~1-2s).
+        let (vm_res, ctr_res, hz_res) = tokio::join!(
+            collectors::vm::collect(ts),
+            collectors::container::collect(ts),
+            collectors::hetzner::collect(ts),
+        );
+
+        match vm_res {
             Ok(mut rows) => batch.append(&mut rows),
             Err(e) => tracing::warn!("vm collector failed: {e:#}"),
         }
-        match collectors::container::collect(ts).await {
+        match ctr_res {
             Ok(mut rows) => batch.append(&mut rows),
             Err(e) => tracing::warn!("container collector failed: {e:#}"),
         }
-        match collectors::hetzner::collect(ts).await {
+        match hz_res {
             Ok(mut rows) => batch.append(&mut rows),
             Err(e) => tracing::warn!("hetzner collector failed: {e:#}"),
         }
@@ -63,7 +82,5 @@ async fn main() -> Result<()> {
         if buf.dropped_count() > 0 {
             tracing::warn!(dropped = buf.dropped_count(), "buffer overflow occurred");
         }
-
-        sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
     }
 }

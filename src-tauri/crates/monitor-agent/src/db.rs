@@ -3,12 +3,8 @@ use deadpool_postgres::Pool;
 use monitor_shared::MetricRow;
 use tokio_postgres::NoTls;
 
-pub fn build_pool(database_url: &str) -> Result<Pool> {
-    let parsed: tokio_postgres::Config = database_url
-        .parse()
-        .context("invalid DATABASE_URL")?;
-
-    let pool = deadpool_postgres::Pool::builder(deadpool_postgres::Manager::new(parsed, NoTls))
+pub fn build_pool(cfg: tokio_postgres::Config) -> Result<Pool> {
+    let pool = deadpool_postgres::Pool::builder(deadpool_postgres::Manager::new(cfg, NoTls))
         .max_size(4)
         .build()
         .context("failed to build connection pool")?;
@@ -19,8 +15,9 @@ pub async fn insert_batch(pool: &Pool, rows: &[MetricRow]) -> Result<()> {
     if rows.is_empty() {
         return Ok(());
     }
-    let client = pool.get().await.context("get pool client")?;
-    let stmt = client
+    let mut client = pool.get().await.context("get pool client")?;
+    let tx = client.transaction().await.context("begin tx")?;
+    let stmt = tx
         .prepare(
             "INSERT INTO metrics (ts, host, source, resource, metric, value, labels)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -30,22 +27,22 @@ pub async fn insert_batch(pool: &Pool, rows: &[MetricRow]) -> Result<()> {
 
     for r in rows {
         let source_str = r.source.as_str();
-        client
-            .execute(
-                &stmt,
-                &[
-                    &r.ts,
-                    &r.host,
-                    &source_str,
-                    &r.resource,
-                    &r.metric,
-                    &r.value,
-                    &r.labels,
-                ],
-            )
-            .await
-            .context("execute insert")?;
+        tx.execute(
+            &stmt,
+            &[
+                &r.ts,
+                &r.host,
+                &source_str,
+                &r.resource,
+                &r.metric,
+                &r.value,
+                &r.labels,
+            ],
+        )
+        .await
+        .context("execute insert")?;
     }
+    tx.commit().await.context("commit tx")?;
     Ok(())
 }
 
@@ -74,7 +71,8 @@ mod tests {
     async fn insert_and_read_back() {
         let url = std::env::var("DATABASE_URL_TEST")
             .expect("DATABASE_URL_TEST required");
-        let pool = build_pool(&url).expect("build pool");
+        let cfg: tokio_postgres::Config = url.parse().expect("parse url");
+        let pool = build_pool(cfg).expect("build pool");
 
         let row = MetricRow {
             ts: Utc::now(),

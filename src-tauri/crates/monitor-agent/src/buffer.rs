@@ -34,8 +34,14 @@ impl Buffer {
         self.rows.drain(..).collect()
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.rows.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
     }
 
     pub fn dropped_count(&self) -> u64 {
