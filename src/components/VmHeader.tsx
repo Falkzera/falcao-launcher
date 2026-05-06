@@ -1,4 +1,7 @@
+import { forecastMonthly } from "../lib/cost";
+import { fmtBytes } from "../lib/format";
 import { monitorApi, usePolling } from "../lib/monitor";
+import { UsageBar } from "./UsageBar";
 
 interface Props {
   enabled: boolean;
@@ -38,9 +41,19 @@ export function VmHeader({ enabled }: Props) {
     : null;
   const stale = heartbeatAge === null || heartbeatAge > 60;
 
-  const dotColor = stale
-    ? "var(--color-danger)"
-    : "var(--color-success)";
+  const dotColor = stale ? "var(--color-danger)" : "var(--color-success)";
+
+  // Disco: total = used + avail (quando ambos disponíveis).
+  const diskTotal =
+    status.last_disk_used_bytes !== null && status.last_disk_avail_bytes !== null
+      ? status.last_disk_used_bytes + status.last_disk_avail_bytes
+      : null;
+
+  // Forecast custo mensal.
+  const forecast =
+    status.cost_accumulated_usd !== null && status.vm_age_hours !== null
+      ? forecastMonthly(status.cost_accumulated_usd, status.vm_age_hours)
+      : null;
 
   return (
     <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-sm">
@@ -57,6 +70,8 @@ export function VmHeader({ enabled }: Props) {
           CX23 · Nuremberg · 162.55.217.189
         </span>
       </div>
+
+      {/* Linha 1: cards "header" — Agente, Load, Custo */}
       <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
         <div>
           <div className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
@@ -83,14 +98,54 @@ export function VmHeader({ enabled }: Props) {
         </div>
         <div>
           <div className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
-            RAM
+            Custo
           </div>
           <div className="font-mono text-[var(--color-text-primary)]">
-            {status.last_mem_pct !== null
-              ? `${status.last_mem_pct.toFixed(1)}%`
+            {status.cost_accumulated_usd !== null ? (
+              <>
+                ${status.cost_accumulated_usd.toFixed(2)}
+                {forecast !== null && (
+                  <span className="text-[var(--color-text-muted)]">
+                    {" "}
+                    / ${forecast.toFixed(2)}
+                  </span>
+                )}
+              </>
+            ) : (
+              "$—"
+            )}
+          </div>
+          <div className="text-xs text-[var(--color-text-muted)]">
+            {status.vm_age_hours !== null
+              ? `~${status.vm_age_hours.toFixed(0)}h rodando`
               : "—"}
           </div>
         </div>
+      </div>
+
+      {/* Linha 2: bars de utilização — RAM, Disco, Bandwidth */}
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <UsageBar
+          label="RAM"
+          value={status.last_mem_used_bytes}
+          max={status.last_mem_total_bytes}
+          formatValue={fmtBytes}
+          formatMax={fmtBytes}
+        />
+        <UsageBar
+          label="Disco"
+          value={status.last_disk_used_bytes}
+          max={diskTotal}
+          formatValue={fmtBytes}
+          formatMax={fmtBytes}
+        />
+        <UsageBar
+          label="Bandwidth do mês"
+          value={status.last_hetzner_outgoing_bytes}
+          max={status.last_hetzner_included_bytes}
+          formatValue={fmtBytes}
+          formatMax={fmtBytes}
+        />
       </div>
     </div>
   );
