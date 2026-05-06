@@ -1,4 +1,6 @@
+import { fmtBytes } from "../lib/format";
 import type { ContainerInfo } from "../types/monitor";
+import { UsageBar } from "./UsageBar";
 
 interface Props {
   container: ContainerInfo;
@@ -14,7 +16,7 @@ export function VmContainerCard({ container, onClick }: Props) {
   return (
     <button
       onClick={onClick}
-      className="flex w-full flex-col gap-2 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 text-left shadow-sm transition hover:border-[var(--color-accent-primary)]/40 hover:shadow-md"
+      className="flex w-full flex-col gap-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 text-left shadow-sm transition hover:border-[var(--color-accent-primary)]/40 hover:shadow-md"
     >
       <div className="flex items-center gap-2">
         <span
@@ -30,27 +32,21 @@ export function VmContainerCard({ container, onClick }: Props) {
           {container.name}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div>
-          <div className="uppercase tracking-wide text-[var(--color-text-secondary)]">
-            CPU
-          </div>
-          <div className="font-mono text-[var(--color-text-primary)]">
-            {container.last_cpu_pct !== null
-              ? `${container.last_cpu_pct.toFixed(2)}%`
-              : "—"}
-          </div>
-        </div>
-        <div>
-          <div className="uppercase tracking-wide text-[var(--color-text-secondary)]">
-            RAM
-          </div>
-          <div className="font-mono text-[var(--color-text-primary)]">
-            {container.last_mem_pct !== null
-              ? `${container.last_mem_pct.toFixed(1)}%`
-              : "—"}
-          </div>
-        </div>
+      <div className="flex flex-col gap-2">
+        <UsageBar
+          label="CPU"
+          value={container.last_cpu_pct}
+          max={100}
+          formatValue={(v) => `${v.toFixed(1)}%`}
+          formatMax={() => "100%"}
+        />
+        <UsageBar
+          label="RAM"
+          value={container.last_mem_used_bytes}
+          max={container.last_mem_limit_bytes}
+          formatValue={fmtBytes}
+          formatMax={fmtBytes}
+        />
       </div>
     </button>
   );
