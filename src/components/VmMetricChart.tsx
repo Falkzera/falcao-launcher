@@ -8,7 +8,7 @@ import {
   YAxis,
 } from "recharts";
 import { monitorApi, usePolling } from "../lib/monitor";
-import type { MetricSource } from "../types/monitor";
+import type { MetricBucket, MetricPoint, MetricSource } from "../types/monitor";
 
 interface Props {
   title: string;
@@ -22,6 +22,13 @@ interface Props {
   pollMs?: number;
   /** formatter custom pro Y-axis e tooltip */
   format?: (v: number) => string;
+  /** agregação server-side (time_bucket); null = sem bucket, pontos crus */
+  bucket?: MetricBucket;
+  /**
+   * Transform aplicado nos pontos depois do fetch e antes do render.
+   * Útil pra derivar rate de counters cumulativos (ex: net_tx_bytes → MB/s).
+   */
+  transform?: (pts: MetricPoint[]) => MetricPoint[];
 }
 
 function formatTimeLabel(ts: number): string {
@@ -41,19 +48,29 @@ export function VmMetricChart({
   enabled,
   pollMs = 30_000,
   format,
+  bucket = null,
+  transform,
 }: Props) {
   // sinceIso recalculado dentro do fetcher pra cada tick olhar a janela atual.
   const fetcher = () => {
     const sinceIso = new Date(
       Date.now() - windowMinutes * 60_000,
     ).toISOString();
-    return monitorApi.metricSeries({ source, resource, metric, sinceIso });
+    return monitorApi.metricSeries({
+      source,
+      resource,
+      metric,
+      sinceIso,
+      bucket,
+    });
   };
 
   const { data, error } = usePolling(fetcher, pollMs, enabled);
 
+  const transformed = data && transform ? transform(data) : data;
+
   const chartData =
-    data
+    transformed
       ?.filter((p) => p.value !== null)
       .map((p) => ({
         ts: new Date(p.ts).getTime(),
