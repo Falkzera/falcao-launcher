@@ -81,6 +81,7 @@ export function StackCard({ summary, enabled, onOpen }: Props) {
       <BackendBlock
         containers={detail?.containers ?? []}
         backendRunning={summary.backend_running}
+        hasContainerNames={summary.container_names.length > 0}
       />
 
       <EndpointBlock health={detail?.endpoint_health ?? null} />
@@ -181,17 +182,27 @@ function VercelBlock({
 function BackendBlock({
   containers,
   backendRunning,
+  hasContainerNames,
 }: {
   containers: ContainerInfo[];
   backendRunning: boolean;
+  hasContainerNames: boolean;
 }) {
   if (containers.length === 0) {
+    let message: string;
+    if (backendRunning) {
+      message = "carregando…";
+    } else if (hasContainerNames) {
+      // Tem container conhecido, mas não foi visto nos últimos 5min
+      message = "container offline";
+    } else {
+      // Stack só-frontend: nunca houve container atrelado na VM
+      message = "sem backend na VM (só frontend Vercel)";
+    }
     return (
       <section className="space-y-1">
         <SectionLabel>Backend container</SectionLabel>
-        <p className="text-xs text-[var(--color-text-muted)]">
-          {backendRunning ? "carregando…" : "container offline"}
-        </p>
+        <p className="text-xs text-[var(--color-text-muted)]">{message}</p>
       </section>
     );
   }

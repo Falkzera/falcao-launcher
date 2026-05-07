@@ -9,6 +9,7 @@ import type {
   VercelDeploymentRow,
   WindowKey,
 } from "../types/monitor";
+import { DrawerLoadingOverlay } from "./DrawerLoadingOverlay";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { UsageBar } from "./UsageBar";
 import { VercelStatusBadge } from "./VercelStatusBadge";
@@ -38,13 +39,18 @@ export function StackDrawer({ stackName, enabled, onClose }: Props) {
   const [drawerWindow, setDrawerWindow] = useState<WindowKey>("1h");
   const params = windowToParams(drawerWindow);
 
+  // Loading: detail ainda não chegou na primeira coleta.
+  // Quando estiver disponível mostramos o conteúdo real; o usePolling
+  // continua atualizando em background a cada 30s sem reativar o overlay.
+  const isLoading = detail === null || detail === undefined;
+
   return (
     <motion.aside
       variants={slideInRight}
       initial="initial"
       animate="animate"
       exit="exit"
-      className="fixed top-0 right-0 z-30 flex h-full w-full max-w-2xl flex-col border-l border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+      className="fixed top-0 right-0 z-30 flex h-full w-full max-w-2xl flex-col overflow-hidden border-l border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
     >
       <header className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-5 py-3">
         <div className="min-w-0">
@@ -64,23 +70,26 @@ export function StackDrawer({ stackName, enabled, onClose }: Props) {
         </button>
       </header>
 
-      <div className="flex-1 space-y-7 overflow-y-auto p-5">
-        <VercelSection
-          latest={detail?.vercel ?? null}
-          history={detail?.vercel_history ?? []}
-        />
+      <div className="relative flex-1">
+        <div className="h-full space-y-7 overflow-y-auto p-5">
+          <VercelSection
+            latest={detail?.vercel ?? null}
+            history={detail?.vercel_history ?? []}
+          />
 
-        <ContainersSection
-          containers={detail?.containers ?? []}
-          enabled={enabled}
-          window={drawerWindow}
-          onWindowChange={setDrawerWindow}
-          windowParams={params}
-        />
+          <ContainersSection
+            containers={detail?.containers ?? []}
+            enabled={enabled}
+            window={drawerWindow}
+            onWindowChange={setDrawerWindow}
+            windowParams={params}
+          />
 
-        {detail?.endpoint_health && (
-          <EndpointSection health={detail.endpoint_health} />
-        )}
+          {detail?.endpoint_health && (
+            <EndpointSection health={detail.endpoint_health} />
+          )}
+        </div>
+        <DrawerLoadingOverlay loading={isLoading} />
       </div>
     </motion.aside>
   );
