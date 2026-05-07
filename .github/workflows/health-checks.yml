@@ -2,7 +2,11 @@ name: External Health Checks
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Dispara nos minutos :02, :07, :12, ... :57 — fora dos minutos cheios
+    # (:00, :05, :10...) que o GH Actions documenta como horário de pico onde
+    # cron events sofrem delays maiores. Mesmo intervalo de 5min, melhor
+    # garantia de execução em tempo razoável.
+    - cron: "2-59/5 * * * *"
   workflow_dispatch:
 
 permissions:
