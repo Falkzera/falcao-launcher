@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { monitorApi, usePolling } from "../lib/monitor";
 import type { StackSummary } from "../types/monitor";
+import { InlineLoading } from "./Loading";
 import { StackCard } from "./StackCard";
 import { StackDrawer } from "./StackDrawer";
 
@@ -44,6 +45,17 @@ export function StackGrid({ enabled, onStacksChange }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedStack]);
 
+  // Body scroll lock enquanto drawer está aberto — evita scroll-chaining
+  // (scroll na drawer não rola a página atrás).
+  useEffect(() => {
+    if (!selectedStack) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [selectedStack]);
+
   if (error && !stacks) {
     return (
       <div className="rounded-lg border border-[var(--color-danger)]/40 bg-[var(--color-danger-soft)] p-3 text-xs text-[var(--color-danger)]">
@@ -54,14 +66,15 @@ export function StackGrid({ enabled, onStacksChange }: Props) {
 
   if (!stacks) {
     return (
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {[0, 1].map((i) => (
-          <div
-            key={i}
-            className="h-48 animate-pulse rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)]"
-          />
-        ))}
-      </div>
+      <InlineLoading
+        minHeight="12rem"
+        messages={[
+          "Buscando stacks ativas",
+          "Sincronizando com a VM",
+          "Lendo labels dos containers",
+          "Quase lá",
+        ]}
+      />
     );
   }
 

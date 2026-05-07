@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { monitorApi, usePolling } from "../lib/monitor";
+import { InlineLoading } from "./Loading";
 import { VmContainerCard } from "./VmContainerCard";
 
 interface Props {
@@ -39,9 +40,15 @@ export function VmContainerGrid({ enabled, onSelect, excludeNames }: Props) {
   }
   if (!orphans) {
     return (
-      <div className="text-sm text-[var(--color-text-secondary)]">
-        Carregando containers…
-      </div>
+      <InlineLoading
+        minHeight="9rem"
+        messages={[
+          "Lendo containers ativos",
+          "Coletando CPU e RAM",
+          "Sincronizando com a VM",
+          "Quase lá",
+        ]}
+      />
     );
   }
   if (orphans.length === 0) {

@@ -9,7 +9,7 @@ import type {
   VercelDeploymentRow,
   WindowKey,
 } from "../types/monitor";
-import { DrawerLoadingOverlay } from "./DrawerLoadingOverlay";
+import { DrawerLoadingOverlay } from "./Loading";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { UsageBar } from "./UsageBar";
 import { VercelStatusBadge } from "./VercelStatusBadge";
@@ -71,7 +71,10 @@ export function StackDrawer({ stackName, enabled, onClose }: Props) {
       </header>
 
       <div className="relative flex-1">
-        <div className="h-full space-y-7 overflow-y-auto p-5">
+        <div
+          className="h-full space-y-7 overflow-y-auto p-5"
+          style={{ overscrollBehavior: "contain" }}
+        >
           <VercelSection
             latest={detail?.vercel ?? null}
             history={detail?.vercel_history ?? []}
