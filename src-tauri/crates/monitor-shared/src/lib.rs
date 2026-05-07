@@ -33,3 +33,10 @@ impl MetricSource {
 
 pub const HOST_NAME: &str = "falcao-main";
 pub const POLL_INTERVAL_SECS: u64 = 15;
+
+/// Endpoints monitorados pelo health check externo (Sprint 2).
+pub const HEALTH_ENDPOINTS: [&str; 3] = [
+    "https://falcao-financas.duckdns.org/api/health",
+    "https://falcao-financas.vercel.app",
+    "https://162.55.217.189",
+];
