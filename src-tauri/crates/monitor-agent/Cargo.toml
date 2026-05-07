@@ -1,6 +1,6 @@
 [package]
 name = "monitor-agent"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -18,3 +18,4 @@ tokio-postgres = { workspace = true }
 deadpool-postgres = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+reqwest = { workspace = true }

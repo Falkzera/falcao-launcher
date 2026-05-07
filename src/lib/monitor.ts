@@ -10,6 +10,8 @@ import type {
   MetricBucket,
   MetricPoint,
   MetricSource,
+  StackDetail,
+  StackSummary,
   VmStatus,
 } from "../types/monitor";
 
@@ -38,6 +40,9 @@ export const monitorApi = {
     invoke<string>("monitor_fetch_logs", { container, lines }),
   healthSummary: () =>
     invoke<HealthCheckSummary[]>("monitor_health_summary"),
+  listStacks: () => invoke<StackSummary[]>("monitor_list_stacks"),
+  stackDetail: (name: string) =>
+    invoke<StackDetail>("monitor_stack_detail", { name }),
 };
 
 /**

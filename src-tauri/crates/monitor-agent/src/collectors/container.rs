@@ -1,10 +1,18 @@
 //! Coletor de métricas por container via `docker stats`.
+//!
+//! Além de `docker stats` (CPU/RAM/IO), faz um `docker inspect` em batch pra
+//! ler o label `monitor.stack` (Sprint 2 — agrupamento frontend Vercel +
+//! backend container em "stacks em produção"). Containers sem a label
+//! continuam emitindo `labels: None` (sem regressão).
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use monitor_shared::{MetricRow, MetricSource, HOST_NAME};
 use serde::Deserialize;
+use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 use tokio::process::Command;
+use tracing::warn;
 
 #[derive(Debug, Deserialize)]
 struct DockerStat {
@@ -56,7 +64,98 @@ pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
         }
     }
 
+    // Labels: 1 batch `docker inspect` pra todos os containers ativos.
+    // Falha aqui é best-effort — métricas continuam sem labels (sem regressão).
+    let labels_by_name = match fetch_labels(&names).await {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("container: fetch_labels failed (sem stack labels nesse tick): {e:#}");
+            HashMap::new()
+        }
+    };
+    propagate_stack_labels(&mut out, &labels_by_name);
+
     Ok(out)
+}
+
+/// Anexa `{"stack": "<nome>"}` em `MetricRow.labels` pra cada row cujo
+/// `resource` tenha label `monitor.stack` preenchida no inspect.
+fn propagate_stack_labels(rows: &mut [MetricRow], labels_by_name: &HashMap<String, JsonValue>) {
+    if labels_by_name.is_empty() {
+        return;
+    }
+    for r in rows.iter_mut() {
+        let Some(name) = r.resource.as_deref() else {
+            continue;
+        };
+        if let Some(labels) = labels_by_name.get(name) {
+            if let Some(stack) = extract_stack(labels) {
+                r.labels = Some(serde_json::json!({ "stack": stack }));
+            }
+        }
+    }
+}
+
+/// Roda `docker inspect <c1> <c2> ... --format '{{.Name}}\t{{json .Config.Labels}}'`
+/// num único spawn — bem mais barato que N chamadas separadas.
+///
+/// Retorna `HashMap<container_name, labels_json>`. Container sem labels
+/// (`null` no JSON) é incluído como `Value::Null` — `extract_stack` lida.
+async fn fetch_labels(names: &[String]) -> Result<HashMap<String, JsonValue>> {
+    if names.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let output = Command::new("docker")
+        .arg("inspect")
+        .args(names)
+        .arg("--format")
+        .arg("{{.Name}}\t{{json .Config.Labels}}")
+        .output()
+        .await
+        .context("execute docker inspect (labels)")?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "docker inspect failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_inspect_labels(&stdout))
+}
+
+/// Parser de `{{.Name}}\t{{json .Config.Labels}}` (1 linha por container).
+/// Separado pra ser testável sem rodar docker.
+fn parse_inspect_labels(stdout: &str) -> HashMap<String, JsonValue> {
+    let mut out = HashMap::new();
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.splitn(2, '\t');
+        let raw_name = match parts.next() {
+            Some(n) => n,
+            None => continue,
+        };
+        // docker prefixa nome com '/' (ex: "/caddy") — o `docker stats` não. Normaliza.
+        let name = raw_name.trim_start_matches('/').to_string();
+        let json_str = match parts.next() {
+            Some(s) => s,
+            None => continue,
+        };
+        if let Ok(labels) = serde_json::from_str::<JsonValue>(json_str) {
+            out.insert(name, labels);
+        }
+    }
+    out
+}
+
+/// Extrai `monitor.stack` do JSON de labels do container.
+/// Retorna `None` se label ausente, valor não-string, ou labels=null.
+fn extract_stack(labels: &JsonValue) -> Option<String> {
+    labels.get("monitor.stack")?.as_str().map(String::from)
 }
 
 /// Map: "healthy" -> 1.0, "unhealthy"/"starting" -> 0.0, sem healthcheck -> None (skip).
@@ -245,5 +344,53 @@ mod tests {
         assert!(out.iter().any(|r| r.metric == "mem_used_bytes"));
         assert!(out.iter().any(|r| r.metric == "mem_limit_bytes"));
         assert!(out.iter().any(|r| r.metric == "net_rx_bytes"));
+    }
+
+    #[test]
+    fn extracts_monitor_stack_label() {
+        let labels = serde_json::json!({"monitor.stack": "falcao-financas", "other": "x"});
+        assert_eq!(extract_stack(&labels).as_deref(), Some("falcao-financas"));
+    }
+
+    #[test]
+    fn no_label_returns_none() {
+        let labels = serde_json::json!({"other": "x"});
+        assert!(extract_stack(&labels).is_none());
+
+        // Container sem labels (Config.Labels = null) também deve dar None.
+        let null_labels = serde_json::json!(null);
+        assert!(extract_stack(&null_labels).is_none());
+    }
+
+    #[test]
+    fn parse_inspect_labels_strips_leading_slash() {
+        // `docker inspect` prefixa nome com `/`, `docker stats` não.
+        let stdout = "/caddy\t{\"monitor.stack\":\"falcao-financas\"}\n/db\tnull\n";
+        let map = parse_inspect_labels(stdout);
+        assert!(map.contains_key("caddy"));
+        assert!(map.contains_key("db"));
+        assert_eq!(extract_stack(&map["caddy"]).as_deref(), Some("falcao-financas"));
+        assert!(extract_stack(&map["db"]).is_none());
+    }
+
+    #[test]
+    fn propagate_stack_labels_attaches_only_to_matching_rows() {
+        let ts = Utc::now();
+        let mut rows = vec![
+            metric(ts, "caddy", "cpu_pct", 1.0),
+            metric(ts, "falcao-financas", "cpu_pct", 2.0),
+        ];
+        let mut labels = HashMap::new();
+        labels.insert(
+            "falcao-financas".to_string(),
+            serde_json::json!({"monitor.stack": "falcao-financas"}),
+        );
+        propagate_stack_labels(&mut rows, &labels);
+
+        assert!(rows[0].labels.is_none(), "caddy não tem stack");
+        assert_eq!(
+            rows[1].labels.as_ref().and_then(|v| v.get("stack")).and_then(|v| v.as_str()),
+            Some("falcao-financas")
+        );
     }
 }

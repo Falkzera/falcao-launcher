@@ -1,7 +1,8 @@
 //! Tauri commands expostos pro frontend.
 
 use crate::monitor::queries::{ContainerInfo, HealthCheckSummary, MetricPoint, VmStatus};
-use crate::monitor::{queries, tunnel::TunnelManager};
+use crate::monitor::stacks::{StackDetail, StackSummary};
+use crate::monitor::{queries, stacks, tunnel::TunnelManager};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use monitor_shared::HEALTH_ENDPOINTS;
@@ -221,4 +222,38 @@ pub async fn monitor_health_summary(
         }
     }
     Ok(out)
+}
+
+/// Lista todas as stacks vivas (frontend Vercel + backend container agrupados
+/// pelo label `monitor.stack` no compose). Sprint 2.
+#[tauri::command]
+pub async fn monitor_list_stacks(
+    state: State<'_, MonitorState>,
+) -> Result<Vec<StackSummary>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    stacks::list_stacks(&pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Detalhe completo de uma stack: último deploy Vercel + containers + health endpoint.
+#[tauri::command]
+pub async fn monitor_stack_detail(
+    name: String,
+    state: State<'_, MonitorState>,
+) -> Result<StackDetail, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    stacks::stack_detail(&pool, &name)
+        .await
+        .map_err(|e| e.to_string())
 }

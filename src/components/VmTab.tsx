@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toRate } from "../lib/metrics";
 import { useTunnel } from "../lib/monitor";
-import type { WindowKey } from "../types/monitor";
+import type { StackSummary, WindowKey } from "../types/monitor";
 import { HealthChecksSection } from "./HealthChecksSection";
+import { SettingsMenu } from "./SettingsMenu";
+import { StackGrid } from "./StackGrid";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { VmContainerDrawer } from "./VmContainerDrawer";
 import { VmContainerGrid } from "./VmContainerGrid";
 import { VmHeader } from "./VmHeader";
 import { VmMetricChart } from "./VmMetricChart";
+
+const SHOW_FRONTEND_ONLY_STACKS_KEY = "vm:show_frontend_only_stacks";
 
 const WINDOW_LABELS: Record<WindowKey, string> = {
   "1h": "últimos 60 min",
@@ -24,7 +28,27 @@ export function VmTab() {
     null,
   );
   const [vmWindow, setVmWindow] = useState<WindowKey>("1h");
+  const [stacks, setStacks] = useState<StackSummary[]>([]);
+  // Default false: stacks só-frontend (sem container na VM) ficam ocultas.
+  // Decisão do Falcão: foco em projetos com backend na VM.
+  const [showFrontendOnlyStacks, setShowFrontendOnlyStacks] = useState(() => {
+    return localStorage.getItem(SHOW_FRONTEND_ONLY_STACKS_KEY) === "true";
+  });
   const params = windowToParams(vmWindow);
+
+  useEffect(() => {
+    localStorage.setItem(
+      SHOW_FRONTEND_ONLY_STACKS_KEY,
+      String(showFrontendOnlyStacks),
+    );
+  }, [showFrontendOnlyStacks]);
+
+  // Containers já agrupados em stacks (somem do grid cru).
+  const groupedNames = stacks.flatMap((s) => s.container_names);
+
+  const handleStacksChange = useCallback((next: StackSummary[]) => {
+    setStacks(next);
+  }, []);
 
   if (error) {
     return (
@@ -40,9 +64,10 @@ export function VmTab() {
         className="space-y-6 transition-[padding] duration-200"
         style={{ paddingRight: selectedContainer ? "32rem" : "0" }}
       >
-        <VmHeader enabled={ready} />
+        {/* ─── BLOCO A · INFRA ───────────────────────────────────────── */}
+        <MacroHeading>Infra</MacroHeading>
 
-        <HealthChecksSection enabled={ready} />
+        <VmHeader enabled={ready} />
 
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -101,11 +126,49 @@ export function VmTab() {
           </div>
         </section>
 
+        <HealthChecksSection enabled={ready} />
+
+        {/* ─── BLOCO B · APLICAÇÕES ──────────────────────────────────── */}
+        <MacroHeading className="!mt-10">Aplicações</MacroHeading>
+
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[var(--color-text-secondary)]">
+              Stacks em produção
+            </h2>
+            <SettingsMenu
+              groups={[
+                {
+                  title: "stacks",
+                  toggles: [
+                    {
+                      key: "show_frontend_only",
+                      label: "Mostrar stacks só-frontend",
+                      hint: "Inclui projetos Vercel sem backend na VM (page-bea, public, sigof, etc.)",
+                      checked: showFrontendOnlyStacks,
+                      onChange: setShowFrontendOnlyStacks,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+          <StackGrid
+            enabled={ready}
+            onStacksChange={handleStacksChange}
+            showFrontendOnly={showFrontendOnlyStacks}
+          />
+        </section>
+
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
             Containers
           </h2>
-          <VmContainerGrid enabled={ready} onSelect={setSelectedContainer} />
+          <VmContainerGrid
+            enabled={ready}
+            onSelect={setSelectedContainer}
+            excludeNames={groupedNames}
+          />
         </section>
       </div>
 
@@ -120,5 +183,26 @@ export function VmTab() {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// Eyebrow tipográfico que separa os blocos macro (Infra / Aplicações).
+// Sutil de propósito — o storytelling vem da ordem; isso só rotula.
+function MacroHeading({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={
+        "font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)] " +
+        className
+      }
+    >
+      {children}
+    </div>
   );
 }
