@@ -19,6 +19,7 @@ pub enum MetricSource {
     Vm,
     Container,
     Hetzner,
+    Vercel,
 }
 
 impl MetricSource {
@@ -27,8 +28,29 @@ impl MetricSource {
             MetricSource::Vm => "vm",
             MetricSource::Container => "container",
             MetricSource::Hetzner => "hetzner",
+            MetricSource::Vercel => "vercel",
         }
     }
+}
+
+/// Snapshot de um deployment Vercel — heterogêneo demais pra `MetricRow` (texto + timestamps + estado),
+/// vai pra tabela dedicada `vercel_deployments`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VercelDeployment {
+    pub ts: DateTime<Utc>,
+    pub project_id: String,
+    pub project_name: String,
+    pub deployment_id: String,
+    pub state: String,
+    pub url: Option<String>,
+    pub prod_url: Option<String>,
+    pub branch: Option<String>,
+    pub commit_sha: Option<String>,
+    pub commit_msg: Option<String>,
+    pub author: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub ready_at: Option<DateTime<Utc>>,
+    pub build_ms: Option<i32>,
 }
 
 pub const HOST_NAME: &str = "falcao-main";

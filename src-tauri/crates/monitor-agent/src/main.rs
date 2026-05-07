@@ -33,6 +33,45 @@ async fn main() -> Result<()> {
 
     tracing::info!(version = AGENT_VERSION, "falcao-monitor-agent starting");
 
+    // Vercel collector — task paralela com poll 5min (rate limit ~100req/h).
+    // Token ausente → degrada gracefully: agente segue normal sem coletor Vercel.
+    let vercel_token = std::env::var("VERCEL_TOKEN").ok();
+    if vercel_token.is_some() {
+        tracing::info!("vercel: token presente — coletor habilitado");
+    } else {
+        tracing::warn!("vercel: VERCEL_TOKEN ausente — coletor desabilitado");
+    }
+    if let Some(token) = vercel_token {
+        let pool_clone = pool.clone();
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .context("build reqwest client")?;
+        tokio::spawn(async move {
+            let mut tick = interval(Duration::from_secs(300));
+            tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            loop {
+                // primeiro tick é imediato — força coleta inicial sem esperar 5min
+                tick.tick().await;
+                let ts = Utc::now();
+                match collectors::vercel::collect(ts, &http, &token).await {
+                    Ok(rows) => {
+                        if rows.is_empty() {
+                            tracing::debug!("vercel: nenhum deployment retornado");
+                            continue;
+                        }
+                        let count = rows.len();
+                        match db::insert_vercel_deployments(&pool_clone, &rows).await {
+                            Ok(()) => tracing::info!(rows = count, "vercel: persisted deployments"),
+                            Err(e) => tracing::warn!("vercel: insert failed: {e:#}"),
+                        }
+                    }
+                    Err(e) => tracing::warn!("vercel: collect failed: {e:#}"),
+                }
+            }
+        });
+    }
+
     let mut buf = Buffer::default();
     let mut vm_state = VmCollectorState::default();
 
