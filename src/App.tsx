@@ -483,11 +483,15 @@ function App() {
           </div>
         </header>
 
+        {/* VmTab fica SEMPRE montado pra preservar SSH tunnel + polling state
+            entre trocas de aba. Hidden via CSS quando não é a aba ativa. */}
+        <div className={topView === "vm" ? "" : "hidden"}>
+          <VmTab />
+        </div>
+
         {topView === "skills" ? (
           <SkillsView />
-        ) : topView === "vm" ? (
-          <VmTab />
-        ) : (
+        ) : topView === "vm" ? null : (
           <>
         {error && (
           <div className="rounded-md border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm text-[var(--color-danger)]">
