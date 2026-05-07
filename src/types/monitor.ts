@@ -48,3 +48,41 @@ export interface HealthCheckSummary {
   uptime_30d: number | null;
   avg_response_ms_24h: number | null;
 }
+
+// ─── Vercel stacks (Sprint 2) ──────────────────────────────────────────────
+// Espelham structs em src-tauri/src/monitor/stacks.rs.
+
+export type VercelState =
+  | "READY"
+  | "ERROR"
+  | "BUILDING"
+  | "QUEUED"
+  | "CANCELED"
+  | (string & {}); // string-like sentinel pra estados raros não documentados
+
+export interface VercelDeploymentRow {
+  project_name: string;
+  state: VercelState;
+  url: string | null;
+  prod_url: string | null;
+  branch: string | null;
+  commit_msg: string | null;
+  author: string | null;
+  created_at: string | null;
+  ready_at: string | null;
+  build_ms: number | null;
+}
+
+export interface StackSummary {
+  name: string;
+  vercel_state: VercelState | null;
+  backend_running: boolean;
+  container_names: string[];
+}
+
+export interface StackDetail {
+  name: string;
+  vercel: VercelDeploymentRow | null;
+  containers: ContainerInfo[];
+  endpoint_health: HealthCheckSummary | null;
+}

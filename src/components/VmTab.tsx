@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toRate } from "../lib/metrics";
 import { useTunnel } from "../lib/monitor";
-import type { WindowKey } from "../types/monitor";
+import type { StackSummary, WindowKey } from "../types/monitor";
 import { HealthChecksSection } from "./HealthChecksSection";
+import { StackGrid } from "./StackGrid";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { VmContainerDrawer } from "./VmContainerDrawer";
 import { VmContainerGrid } from "./VmContainerGrid";
@@ -24,7 +25,15 @@ export function VmTab() {
     null,
   );
   const [vmWindow, setVmWindow] = useState<WindowKey>("1h");
+  const [stacks, setStacks] = useState<StackSummary[]>([]);
   const params = windowToParams(vmWindow);
+
+  // Containers já agrupados em stacks (somem do grid cru).
+  const groupedNames = stacks.flatMap((s) => s.container_names);
+
+  const handleStacksChange = useCallback((next: StackSummary[]) => {
+    setStacks(next);
+  }, []);
 
   if (error) {
     return (
@@ -43,6 +52,13 @@ export function VmTab() {
         <VmHeader enabled={ready} />
 
         <HealthChecksSection enabled={ready} />
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-secondary)]">
+            Stacks em produção
+          </h2>
+          <StackGrid enabled={ready} onStacksChange={handleStacksChange} />
+        </section>
 
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -105,7 +121,11 @@ export function VmTab() {
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
             Containers
           </h2>
-          <VmContainerGrid enabled={ready} onSelect={setSelectedContainer} />
+          <VmContainerGrid
+            enabled={ready}
+            onSelect={setSelectedContainer}
+            excludeNames={groupedNames}
+          />
         </section>
       </div>
 

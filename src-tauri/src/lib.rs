@@ -12,7 +12,8 @@ mod skills;
 use claude::ClaudeState;
 use monitor::commands::{
     monitor_close_tunnel, monitor_fetch_logs, monitor_health_summary, monitor_list_containers,
-    monitor_metric_series, monitor_open_tunnel, monitor_vm_status, MonitorState,
+    monitor_list_stacks, monitor_metric_series, monitor_open_tunnel, monitor_stack_detail,
+    monitor_vm_status, MonitorState,
 };
 use process::ProcessState;
 use std::sync::Arc;
@@ -61,6 +62,8 @@ pub fn run() {
             monitor_metric_series,
             monitor_fetch_logs,
             monitor_health_summary,
+            monitor_list_stacks,
+            monitor_stack_detail,
         ])
         .setup(|app| {
             // System ports scanner — periódico
