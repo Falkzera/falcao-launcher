@@ -35,3 +35,16 @@ export type MetricSource = "vm" | "container" | "hetzner";
 export type MetricBucket = "1 minute" | "5 minutes" | "1 hour" | "1 day" | null;
 
 export type WindowKey = "1h" | "6h" | "24h" | "7d" | "30d";
+
+export interface HealthCheckSummary {
+  endpoint: string;
+  last_ts: string | null;
+  last_ok: boolean | null;
+  last_status_code: number | null;
+  last_response_ms: number | null;
+  last_error: string | null;
+  uptime_24h: number | null;
+  uptime_7d: number | null;
+  uptime_30d: number | null;
+  avg_response_ms_24h: number | null;
+}

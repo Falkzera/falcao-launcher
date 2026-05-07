@@ -1,0 +1,55 @@
+name: External Health Checks
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health-checks
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe endpoints + push to VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe endpoints
+        run: |
+          ./scripts/probe-endpoints.sh > /tmp/results.csv
+          echo "=== Results ==="
+          cat /tmp/results.csv
+
+      - name: Setup SSH (key + pinned host fingerprint)
+        env:
+          SSH_KEY: ${{ secrets.MONITOR_PUSH_SSH_KEY }}
+          HOST_FINGERPRINT: ${{ secrets.MONITOR_PUSH_HOST_FINGERPRINT }}
+        run: |
+          mkdir -p ~/.ssh
+          # printf preserva o newline final do PEM (echo strip-aria)
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/monitor_push
+          chmod 600 ~/.ssh/monitor_push
+          # Pin do host key — evita TOFU no first-contact
+          printf '%s\n' "$HOST_FINGERPRINT" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Push to VM
+        env:
+          MONITOR_PUSH_SSH_KEY_PATH: /home/runner/.ssh/monitor_push
+          MONITOR_PUSH_KNOWN_HOSTS: /home/runner/.ssh/known_hosts
+          MONITOR_PUSH_HOST: ${{ secrets.MONITOR_PUSH_HOST }}
+          MONITOR_PUSH_USER: ${{ secrets.MONITOR_PUSH_USER }}
+        run: |
+          ./scripts/push-health-results.sh /tmp/results.csv
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/monitor_push ~/.ssh/known_hosts

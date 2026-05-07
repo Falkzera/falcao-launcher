@@ -21,3 +21,30 @@ export function pickProgressColor(pct: number): string {
   if (pct >= 70) return "#eab308";
   return "var(--color-success)";
 }
+
+/**
+ * Formato relativo curto pra timestamps recentes.
+ * "há 5s", "há 2m", "há 1h", "há 3d".
+ */
+export function formatRelative(ts: Date): string {
+  const diffMs = Date.now() - ts.getTime();
+  if (diffMs < 0) return "agora";
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return `há ${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `há ${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `há ${hr}h`;
+  const day = Math.floor(hr / 24);
+  return `há ${day}d`;
+}
+
+/**
+ * Cor pro display de uptime %.
+ * ≥99.9 verde, ≥99 amarelo, <99 vermelho.
+ */
+export function pickUptimeColor(pct: number): string {
+  if (pct >= 99.9) return "var(--color-success)";
+  if (pct >= 99) return "#eab308"; // yellow-500 (consistente com pickProgressColor)
+  return "var(--color-danger)";
+}

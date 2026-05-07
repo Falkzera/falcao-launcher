@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import type {
   ContainerInfo,
+  HealthCheckSummary,
   MetricBucket,
   MetricPoint,
   MetricSource,
@@ -35,6 +36,8 @@ export const monitorApi = {
     }),
   fetchLogs: (container: string, lines: number) =>
     invoke<string>("monitor_fetch_logs", { container, lines }),
+  healthSummary: () =>
+    invoke<HealthCheckSummary[]>("monitor_health_summary"),
 };
 
 /**

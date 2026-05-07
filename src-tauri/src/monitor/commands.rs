@@ -1,9 +1,10 @@
 //! Tauri commands expostos pro frontend.
 
-use crate::monitor::queries::{ContainerInfo, MetricPoint, VmStatus};
+use crate::monitor::queries::{ContainerInfo, HealthCheckSummary, MetricPoint, VmStatus};
 use crate::monitor::{queries, tunnel::TunnelManager};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
+use monitor_shared::HEALTH_ENDPOINTS;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -176,4 +177,48 @@ pub async fn monitor_fetch_logs(container: String, lines: u32) -> Result<String,
         .await
         .map_err(|e| e.to_string())?;
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+/// Resumo dos 3 endpoints monitorados externamente (Sprint 2).
+/// Roda as 3 fetches em paralelo via tokio::join!. Em caso de falha individual,
+/// retorna placeholder com `last_error` setado pra UI conseguir mostrar o card.
+#[tauri::command]
+pub async fn monitor_health_summary(
+    state: State<'_, MonitorState>,
+) -> Result<Vec<HealthCheckSummary>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+
+    let (r0, r1, r2) = tokio::join!(
+        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[0]),
+        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[1]),
+        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[2]),
+    );
+
+    let mut out = Vec::with_capacity(3);
+    for (i, r) in [r0, r1, r2].into_iter().enumerate() {
+        match r {
+            Ok(s) => out.push(s),
+            Err(e) => {
+                tracing::warn!("health summary {} failed: {e:#}", HEALTH_ENDPOINTS[i]);
+                out.push(HealthCheckSummary {
+                    endpoint: HEALTH_ENDPOINTS[i].to_string(),
+                    last_ts: None,
+                    last_ok: None,
+                    last_status_code: None,
+                    last_response_ms: None,
+                    last_error: Some(format!("query failed: {e}")),
+                    uptime_24h: None,
+                    uptime_7d: None,
+                    uptime_30d: None,
+                    avg_response_ms_24h: None,
+                });
+            }
+        }
+    }
+    Ok(out)
 }

@@ -3,6 +3,7 @@ import { AnimatePresence } from "framer-motion";
 import { toRate } from "../lib/metrics";
 import { useTunnel } from "../lib/monitor";
 import type { WindowKey } from "../types/monitor";
+import { HealthChecksSection } from "./HealthChecksSection";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { VmContainerDrawer } from "./VmContainerDrawer";
 import { VmContainerGrid } from "./VmContainerGrid";
@@ -40,6 +41,8 @@ export function VmTab() {
         style={{ paddingRight: selectedContainer ? "32rem" : "0" }}
       >
         <VmHeader enabled={ready} />
+
+        <HealthChecksSection enabled={ready} />
 
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
