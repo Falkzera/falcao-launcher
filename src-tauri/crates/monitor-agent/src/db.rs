@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use deadpool_postgres::Pool;
-use monitor_shared::MetricRow;
+use monitor_shared::{MetricRow, VercelDeployment};
 use tokio_postgres::NoTls;
 
 pub fn build_pool(cfg: tokio_postgres::Config) -> Result<Pool> {
@@ -43,6 +43,56 @@ pub async fn insert_batch(pool: &Pool, rows: &[MetricRow]) -> Result<()> {
         .context("execute insert")?;
     }
     tx.commit().await.context("commit tx")?;
+    Ok(())
+}
+
+/// INSERT batch transacional pra `vercel_deployments`.
+/// Sprint 2 — uma row por projeto por tick (poll 5min). Sem ON CONFLICT:
+/// queremos histórico de observações (mesmo deploy aparece em vários ticks
+/// enquanto ainda é o "último"). Query-time pega `ORDER BY ts DESC LIMIT 1`.
+pub async fn insert_vercel_deployments(
+    pool: &Pool,
+    rows: &[VercelDeployment],
+) -> Result<()> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut client = pool.get().await.context("get pool client")?;
+    let tx = client.transaction().await.context("begin tx")?;
+    let stmt = tx
+        .prepare(
+            "INSERT INTO vercel_deployments
+             (ts, project_id, project_name, deployment_id, state, url, prod_url,
+              branch, commit_sha, commit_msg, author, created_at, ready_at, build_ms)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        )
+        .await
+        .context("prepare insert vercel_deployments")?;
+
+    for r in rows {
+        tx.execute(
+            &stmt,
+            &[
+                &r.ts,
+                &r.project_id,
+                &r.project_name,
+                &r.deployment_id,
+                &r.state,
+                &r.url,
+                &r.prod_url,
+                &r.branch,
+                &r.commit_sha,
+                &r.commit_msg,
+                &r.author,
+                &r.created_at,
+                &r.ready_at,
+                &r.build_ms,
+            ],
+        )
+        .await
+        .context("execute insert vercel_deployments")?;
+    }
+    tx.commit().await.context("commit vercel tx")?;
     Ok(())
 }
 
