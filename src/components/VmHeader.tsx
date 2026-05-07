@@ -1,6 +1,7 @@
 import { forecastMonthly } from "../lib/cost";
 import { fmtBytes } from "../lib/format";
 import { monitorApi, usePolling } from "../lib/monitor";
+import { InlineLoading } from "./Loading";
 import { UsageBar } from "./UsageBar";
 
 interface Props {
@@ -16,9 +17,15 @@ export function VmHeader({ enabled }: Props) {
 
   if (!enabled) {
     return (
-      <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 text-sm text-[var(--color-text-secondary)]">
-        Conectando ao monitor…
-      </div>
+      <InlineLoading
+        minHeight="9rem"
+        messages={[
+          "Abrindo túnel SSH",
+          "Conectando ao monitor",
+          "Negociando chaves",
+          "Quase lá",
+        ]}
+      />
     );
   }
   if (error && !status) {
@@ -30,9 +37,15 @@ export function VmHeader({ enabled }: Props) {
   }
   if (!status) {
     return (
-      <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 text-sm text-[var(--color-text-secondary)]">
-        Carregando status da VM…
-      </div>
+      <InlineLoading
+        minHeight="9rem"
+        messages={[
+          "Lendo status da VM",
+          "Coletando heartbeat do agente",
+          "Calculando custo acumulado",
+          "Quase lá",
+        ]}
+      />
     );
   }
 

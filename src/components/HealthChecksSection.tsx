@@ -1,5 +1,6 @@
 import { monitorApi, usePolling } from "../lib/monitor";
 import { HealthCheckRow } from "./HealthCheckRow";
+import { InlineLoading } from "./Loading";
 
 interface Props {
   enabled: boolean;
@@ -31,9 +32,15 @@ export function HealthChecksSection({ enabled }: Props) {
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-secondary)]">
           Health checks externos
         </h2>
-        <div className="text-sm text-[var(--color-text-tertiary)]">
-          Carregando health checks…
-        </div>
+        <InlineLoading
+          minHeight="8rem"
+          messages={[
+            "Lendo histórico de probes",
+            "Calculando uptime 24h/7d/30d",
+            "Buscando última latência",
+            "Quase lá",
+          ]}
+        />
       </section>
     );
   }
