@@ -203,3 +203,103 @@ pub async fn vm_status(pool: &Pool) -> Result<VmStatus> {
         vm_age_hours,
     })
 }
+
+#[derive(Debug, Serialize)]
+pub struct HealthCheckSummary {
+    pub endpoint: String,
+    pub last_ts: Option<DateTime<Utc>>,
+    pub last_ok: Option<bool>,
+    pub last_status_code: Option<i32>,
+    pub last_response_ms: Option<i32>,
+    pub last_error: Option<String>,
+    pub uptime_24h: Option<f64>,
+    pub uptime_7d: Option<f64>,
+    pub uptime_30d: Option<f64>,
+    pub avg_response_ms_24h: Option<f64>,
+}
+
+pub async fn fetch_health_summary(pool: &Pool, endpoint: &str) -> Result<HealthCheckSummary> {
+    let client = pool.get().await?;
+
+    // Last check (raw row mais recente)
+    let last = client
+        .query_opt(
+            "SELECT ts, ok, status_code, response_ms, error
+             FROM health_checks
+             WHERE endpoint = $1
+             ORDER BY ts DESC
+             LIMIT 1",
+            &[&endpoint],
+        )
+        .await
+        .context("fetch last health check")?;
+
+    let (last_ts, last_ok, last_status_code, last_response_ms, last_error) = match last {
+        Some(r) => (
+            Some(r.get::<_, DateTime<Utc>>(0)),
+            Some(r.get::<_, bool>(1)),
+            r.get::<_, Option<i32>>(2),
+            r.get::<_, Option<i32>>(3),
+            r.get::<_, Option<String>>(4),
+        ),
+        None => (None, None, None, None, None),
+    };
+
+    // Uptime 24h vem do continuous aggregate horário
+    let uptime_24h = client
+        .query_opt(
+            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+             FROM health_checks_hourly
+             WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '24 hours'",
+            &[&endpoint],
+        )
+        .await
+        .context("uptime 24h")?
+        .and_then(|r| r.get::<_, Option<f64>>(0));
+
+    // Uptime 7d / 30d vem do agregado diário
+    let uptime_7d = client
+        .query_opt(
+            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+             FROM health_checks_daily
+             WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '7 days'",
+            &[&endpoint],
+        )
+        .await
+        .context("uptime 7d")?
+        .and_then(|r| r.get::<_, Option<f64>>(0));
+
+    let uptime_30d = client
+        .query_opt(
+            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+             FROM health_checks_daily
+             WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '30 days'",
+            &[&endpoint],
+        )
+        .await
+        .context("uptime 30d")?
+        .and_then(|r| r.get::<_, Option<f64>>(0));
+
+    let avg_response_ms_24h = client
+        .query_opt(
+            "SELECT avg(avg_response_ms) FROM health_checks_hourly
+             WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '24 hours'",
+            &[&endpoint],
+        )
+        .await
+        .context("avg response ms 24h")?
+        .and_then(|r| r.get::<_, Option<f64>>(0));
+
+    Ok(HealthCheckSummary {
+        endpoint: endpoint.to_string(),
+        last_ts,
+        last_ok,
+        last_status_code,
+        last_response_ms,
+        last_error,
+        uptime_24h,
+        uptime_7d,
+        uptime_30d,
+        avg_response_ms_24h,
+    })
+}
