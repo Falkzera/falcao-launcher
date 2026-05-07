@@ -1,15 +1,18 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toRate } from "../lib/metrics";
 import { useTunnel } from "../lib/monitor";
 import type { StackSummary, WindowKey } from "../types/monitor";
 import { HealthChecksSection } from "./HealthChecksSection";
+import { SettingsMenu } from "./SettingsMenu";
 import { StackGrid } from "./StackGrid";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { VmContainerDrawer } from "./VmContainerDrawer";
 import { VmContainerGrid } from "./VmContainerGrid";
 import { VmHeader } from "./VmHeader";
 import { VmMetricChart } from "./VmMetricChart";
+
+const SHOW_FRONTEND_ONLY_STACKS_KEY = "vm:show_frontend_only_stacks";
 
 const WINDOW_LABELS: Record<WindowKey, string> = {
   "1h": "últimos 60 min",
@@ -26,7 +29,19 @@ export function VmTab() {
   );
   const [vmWindow, setVmWindow] = useState<WindowKey>("1h");
   const [stacks, setStacks] = useState<StackSummary[]>([]);
+  // Default false: stacks só-frontend (sem container na VM) ficam ocultas.
+  // Decisão do Falcão: foco em projetos com backend na VM.
+  const [showFrontendOnlyStacks, setShowFrontendOnlyStacks] = useState(() => {
+    return localStorage.getItem(SHOW_FRONTEND_ONLY_STACKS_KEY) === "true";
+  });
   const params = windowToParams(vmWindow);
+
+  useEffect(() => {
+    localStorage.setItem(
+      SHOW_FRONTEND_ONLY_STACKS_KEY,
+      String(showFrontendOnlyStacks),
+    );
+  }, [showFrontendOnlyStacks]);
 
   // Containers já agrupados em stacks (somem do grid cru).
   const groupedNames = stacks.flatMap((s) => s.container_names);
@@ -54,10 +69,32 @@ export function VmTab() {
         <HealthChecksSection enabled={ready} />
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-secondary)]">
-            Stacks em produção
-          </h2>
-          <StackGrid enabled={ready} onStacksChange={handleStacksChange} />
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[var(--color-text-secondary)]">
+              Stacks em produção
+            </h2>
+            <SettingsMenu
+              groups={[
+                {
+                  title: "stacks",
+                  toggles: [
+                    {
+                      key: "show_frontend_only",
+                      label: "Mostrar stacks só-frontend",
+                      hint: "Inclui projetos Vercel sem backend na VM (page-bea, public, sigof, etc.)",
+                      checked: showFrontendOnlyStacks,
+                      onChange: setShowFrontendOnlyStacks,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+          <StackGrid
+            enabled={ready}
+            onStacksChange={handleStacksChange}
+            showFrontendOnly={showFrontendOnlyStacks}
+          />
         </section>
 
         <section>

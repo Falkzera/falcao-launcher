@@ -9,11 +9,18 @@ import { StackDrawer } from "./StackDrawer";
 interface Props {
   enabled: boolean;
   /** Callback opcional pro pai saber quais containers já estão agrupados em stack
-   *  (evita render duplicado no VmContainerGrid). */
+   *  (evita render duplicado no VmContainerGrid). Sempre recebe TODAS as stacks
+   *  vivas, independente do filtro visual `showFrontendOnly`. */
   onStacksChange?: (stacks: StackSummary[]) => void;
+  /** Se false (default), esconde stacks só-frontend (sem container na VM). */
+  showFrontendOnly?: boolean;
 }
 
-export function StackGrid({ enabled, onStacksChange }: Props) {
+export function StackGrid({
+  enabled,
+  onStacksChange,
+  showFrontendOnly = false,
+}: Props) {
   const { data: stacks, error } = usePolling(
     monitorApi.listStacks,
     30_000,
@@ -90,10 +97,30 @@ export function StackGrid({ enabled, onStacksChange }: Props) {
     );
   }
 
+  // Filtra stacks só-frontend (sem container conhecido) quando o toggle
+  // está desligado. O callback onStacksChange recebe a lista completa pra
+  // que VmContainerGrid continue suprimindo containers já agrupados.
+  const visible = showFrontendOnly
+    ? stacks
+    : stacks.filter((s) => s.container_names.length > 0);
+
+  if (visible.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] p-6 text-center text-sm text-[var(--color-text-secondary)]">
+        Nenhuma stack com backend na VM. Habilite{" "}
+        <span className="font-mono text-[var(--color-text-primary)]">
+          Mostrar stacks só-frontend
+        </span>{" "}
+        nas preferências pra incluir os {stacks.length} projeto
+        {stacks.length === 1 ? "" : "s"} Vercel sem container.
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {stacks.map((s) => (
+        {visible.map((s) => (
           <StackCard
             key={s.name}
             summary={s}

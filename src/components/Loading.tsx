@@ -128,13 +128,9 @@ export function DrawerLoadingOverlay({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, transition: { duration: 0.28 } }}
           transition={{ duration: 0.18 }}
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 backdrop-blur-md"
-          style={{
-            background:
-              "linear-gradient(to bottom, var(--color-bg-secondary)cc, var(--color-bg-secondary)e6)",
-          }}
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-[var(--color-bg-secondary)]"
         >
           <Spinner size="md" />
           <LoadingMessages messages={messages} />
