@@ -13,9 +13,10 @@ import { VercelStatusBadge } from "./VercelStatusBadge";
 interface Props {
   summary: StackSummary;
   enabled: boolean;
+  onOpen?: (stackName: string) => void;
 }
 
-export function StackCard({ summary, enabled }: Props) {
+export function StackCard({ summary, enabled, onOpen }: Props) {
   // Lazy-load do detalhe — polling de 30s só quando o tunnel está pronto.
   const fetchDetail = useCallback(
     () => monitorApi.stackDetail(summary.name),
@@ -26,10 +27,36 @@ export function StackCard({ summary, enabled }: Props) {
   const aggregateHealthy =
     summary.vercel_state === "READY" && summary.backend_running;
 
+  const clickable = onOpen != null;
+
+  const handleClick = () => {
+    if (onOpen) onOpen(summary.name);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!onOpen) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onOpen(summary.name);
+    }
+  };
+
   return (
     <div
-      className="flex flex-col gap-4 rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-sm"
+      className={
+        "flex flex-col gap-4 rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-sm transition" +
+        (clickable
+          ? " cursor-pointer hover:border-[var(--color-accent-primary)]/40 hover:bg-[var(--color-bg-card-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]/40"
+          : "")
+      }
       data-stack={summary.name}
+      onClick={clickable ? handleClick : undefined}
+      onKeyDown={clickable ? handleKeyDown : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-label={
+        clickable ? `Abrir detalhes da stack ${summary.name}` : undefined
+      }
     >
       <header className="flex items-center justify-between gap-3">
         <h3
@@ -131,6 +158,7 @@ function VercelBlock({
           rel="noopener noreferrer"
           className="block rounded-md transition hover:bg-[var(--color-bg-glass)]"
           title={url ?? undefined}
+          onClick={(e) => e.stopPropagation()}
         >
           {content}
         </a>

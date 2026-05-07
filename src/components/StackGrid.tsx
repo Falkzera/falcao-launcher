@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { monitorApi, usePolling } from "../lib/monitor";
 import type { StackSummary } from "../types/monitor";
 import { StackCard } from "./StackCard";
+import { StackDrawer } from "./StackDrawer";
 
 interface Props {
   enabled: boolean;
@@ -17,11 +19,30 @@ export function StackGrid({ enabled, onStacksChange }: Props) {
     enabled,
   );
 
+  const [selectedStack, setSelectedStack] = useState<string | null>(null);
+
   useEffect(() => {
     if (stacks && onStacksChange) {
       onStacksChange(stacks);
     }
   }, [stacks, onStacksChange]);
+
+  // Se a stack selecionada sumir do polling, fecha o drawer
+  useEffect(() => {
+    if (selectedStack && stacks && !stacks.some((s) => s.name === selectedStack)) {
+      setSelectedStack(null);
+    }
+  }, [selectedStack, stacks]);
+
+  // Esc fecha drawer
+  useEffect(() => {
+    if (!selectedStack) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedStack(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedStack]);
 
   if (error && !stacks) {
     return (
@@ -57,10 +78,27 @@ export function StackGrid({ enabled, onStacksChange }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      {stacks.map((s) => (
-        <StackCard key={s.name} summary={s} enabled={enabled} />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {stacks.map((s) => (
+          <StackCard
+            key={s.name}
+            summary={s}
+            enabled={enabled}
+            onOpen={setSelectedStack}
+          />
+        ))}
+      </div>
+      <AnimatePresence>
+        {selectedStack && (
+          <StackDrawer
+            key={selectedStack}
+            stackName={selectedStack}
+            enabled={enabled}
+            onClose={() => setSelectedStack(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }

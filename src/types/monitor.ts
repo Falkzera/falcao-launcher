@@ -82,7 +82,10 @@ export interface StackSummary {
 
 export interface StackDetail {
   name: string;
+  /** Último deploy (= primeiro item de `vercel_history` se houver). */
   vercel: VercelDeploymentRow | null;
+  /** Últimos 10 deploys, do mais recente pro mais antigo. Drawer usa pra histórico. */
+  vercel_history: VercelDeploymentRow[];
   containers: ContainerInfo[];
   endpoint_health: HealthCheckSummary | null;
 }

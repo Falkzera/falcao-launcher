@@ -20,7 +20,7 @@ pub struct StackSummary {
     pub container_names: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VercelDeploymentRow {
     pub project_name: String,
     pub state: String,
@@ -37,7 +37,12 @@ pub struct VercelDeploymentRow {
 #[derive(Debug, Serialize)]
 pub struct StackDetail {
     pub name: String,
+    /// Último deploy Vercel (= primeiro item de `vercel_history` se houver, ou None).
+    /// Mantido pra UI que só precisa do mais recente (StackCard).
     pub vercel: Option<VercelDeploymentRow>,
+    /// Últimos 10 deploys ordenados do mais recente pro mais antigo.
+    /// Drawer usa pra mostrar histórico.
+    pub vercel_history: Vec<VercelDeploymentRow>,
     pub containers: Vec<ContainerInfo>,
     pub endpoint_health: Option<HealthCheckSummary>,
 }
@@ -137,30 +142,53 @@ pub async fn list_stacks(pool: &Pool) -> Result<Vec<StackSummary>> {
 pub async fn stack_detail(pool: &Pool, name: &str) -> Result<StackDetail> {
     let client = pool.get().await?;
 
-    // 1) Último deploy Vercel
-    let vercel = client
-        .query_opt(
-            "SELECT project_name, state, url, prod_url, branch, commit_msg, author,
-                    created_at, ready_at, build_ms
+    // 1) Histórico Vercel — últimos 10 deploys (ordem do mais recente).
+    //    Usamos DISTINCT ON pra não duplicar quando o agente colidiu o mesmo
+    //    deployment_id em ticks subsequentes (poll de 5min lê o mesmo deploy
+    //    enquanto não houver um novo).
+    let vercel_rows = client
+        .query(
+            "SELECT DISTINCT ON (deployment_id)
+                    project_name, state, url, prod_url, branch, commit_msg, author,
+                    created_at, ready_at, build_ms, ts
              FROM vercel_deployments
              WHERE project_name = $1
-             ORDER BY ts DESC LIMIT 1",
+             ORDER BY deployment_id, ts DESC",
             &[&name],
         )
         .await
-        .context("fetch latest vercel deploy")?
-        .map(|r| VercelDeploymentRow {
-            project_name: r.get(0),
-            state: r.get(1),
-            url: r.get(2),
-            prod_url: r.get(3),
-            branch: r.get(4),
-            commit_msg: r.get(5),
-            author: r.get(6),
-            created_at: r.get(7),
-            ready_at: r.get(8),
-            build_ms: r.get(9),
-        });
+        .context("fetch vercel history")?;
+
+    let mut vercel_history: Vec<VercelDeploymentRow> = vercel_rows
+        .into_iter()
+        .map(|r| {
+            let row = VercelDeploymentRow {
+                project_name: r.get(0),
+                state: r.get(1),
+                url: r.get(2),
+                prod_url: r.get(3),
+                branch: r.get(4),
+                commit_msg: r.get(5),
+                author: r.get(6),
+                created_at: r.get(7),
+                ready_at: r.get(8),
+                build_ms: r.get(9),
+            };
+            // ts (idx 10) usado só pra sort, não vai pra UI.
+            let ts: DateTime<Utc> = r.get(10);
+            (row, ts)
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|(row, _)| row)
+        .collect();
+
+    // Sort por created_at desc (deploy mais recente primeiro). Defensivo:
+    // se created_at for None, joga pro fim.
+    vercel_history.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    vercel_history.truncate(10);
+
+    let vercel = vercel_history.first().cloned();
 
     // 2) Containers da stack (snapshot último 1min) — formato igual list_containers
     //    mas filtrado por labels->>'stack' = $1.
@@ -226,6 +254,7 @@ pub async fn stack_detail(pool: &Pool, name: &str) -> Result<StackDetail> {
     Ok(StackDetail {
         name: name.to_string(),
         vercel,
+        vercel_history,
         containers,
         endpoint_health,
     })
