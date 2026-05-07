@@ -64,38 +64,10 @@ export function VmTab() {
         className="space-y-6 transition-[padding] duration-200"
         style={{ paddingRight: selectedContainer ? "32rem" : "0" }}
       >
+        {/* ─── BLOCO A · INFRA ───────────────────────────────────────── */}
+        <MacroHeading>Infra</MacroHeading>
+
         <VmHeader enabled={ready} />
-
-        <HealthChecksSection enabled={ready} />
-
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-[var(--color-text-secondary)]">
-              Stacks em produção
-            </h2>
-            <SettingsMenu
-              groups={[
-                {
-                  title: "stacks",
-                  toggles: [
-                    {
-                      key: "show_frontend_only",
-                      label: "Mostrar stacks só-frontend",
-                      hint: "Inclui projetos Vercel sem backend na VM (page-bea, public, sigof, etc.)",
-                      checked: showFrontendOnlyStacks,
-                      onChange: setShowFrontendOnlyStacks,
-                    },
-                  ],
-                },
-              ]}
-            />
-          </div>
-          <StackGrid
-            enabled={ready}
-            onStacksChange={handleStacksChange}
-            showFrontendOnly={showFrontendOnlyStacks}
-          />
-        </section>
 
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -154,6 +126,40 @@ export function VmTab() {
           </div>
         </section>
 
+        <HealthChecksSection enabled={ready} />
+
+        {/* ─── BLOCO B · APLICAÇÕES ──────────────────────────────────── */}
+        <MacroHeading className="!mt-10">Aplicações</MacroHeading>
+
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[var(--color-text-secondary)]">
+              Stacks em produção
+            </h2>
+            <SettingsMenu
+              groups={[
+                {
+                  title: "stacks",
+                  toggles: [
+                    {
+                      key: "show_frontend_only",
+                      label: "Mostrar stacks só-frontend",
+                      hint: "Inclui projetos Vercel sem backend na VM (page-bea, public, sigof, etc.)",
+                      checked: showFrontendOnlyStacks,
+                      onChange: setShowFrontendOnlyStacks,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+          <StackGrid
+            enabled={ready}
+            onStacksChange={handleStacksChange}
+            showFrontendOnly={showFrontendOnlyStacks}
+          />
+        </section>
+
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
             Containers
@@ -177,5 +183,26 @@ export function VmTab() {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// Eyebrow tipográfico que separa os blocos macro (Infra / Aplicações).
+// Sutil de propósito — o storytelling vem da ordem; isso só rotula.
+function MacroHeading({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={
+        "font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)] " +
+        className
+      }
+    >
+      {children}
+    </div>
   );
 }
