@@ -251,7 +251,7 @@ pub async fn fetch_health_summary(pool: &Pool, endpoint: &str) -> Result<HealthC
     // Uptime 24h vem do continuous aggregate horário
     let uptime_24h = client
         .query_opt(
-            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+            "SELECT (100.0 * SUM(up)::float / NULLIF(SUM(total), 0))::float8 AS pct
              FROM health_checks_hourly
              WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '24 hours'",
             &[&endpoint],
@@ -263,7 +263,7 @@ pub async fn fetch_health_summary(pool: &Pool, endpoint: &str) -> Result<HealthC
     // Uptime 7d / 30d vem do agregado diário
     let uptime_7d = client
         .query_opt(
-            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+            "SELECT (100.0 * SUM(up)::float / NULLIF(SUM(total), 0))::float8 AS pct
              FROM health_checks_daily
              WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '7 days'",
             &[&endpoint],
@@ -274,7 +274,7 @@ pub async fn fetch_health_summary(pool: &Pool, endpoint: &str) -> Result<HealthC
 
     let uptime_30d = client
         .query_opt(
-            "SELECT 100.0 * SUM(up)::float / NULLIF(SUM(total), 0) AS pct
+            "SELECT (100.0 * SUM(up)::float / NULLIF(SUM(total), 0))::float8 AS pct
              FROM health_checks_daily
              WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '30 days'",
             &[&endpoint],
@@ -285,7 +285,10 @@ pub async fn fetch_health_summary(pool: &Pool, endpoint: &str) -> Result<HealthC
 
     let avg_response_ms_24h = client
         .query_opt(
-            "SELECT avg(avg_response_ms) FROM health_checks_hourly
+            // ::float8 explicit cast — avg(numeric) volta numeric, e tokio_postgres
+            // não converte numeric → f64 sem o decimal crate. Sem o cast, panicou
+            // em "error deserializing column 0".
+            "SELECT avg(avg_response_ms)::float8 FROM health_checks_hourly
              WHERE endpoint = $1 AND bucket > NOW() - INTERVAL '24 hours'",
             &[&endpoint],
         )
