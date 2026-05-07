@@ -6,11 +6,24 @@ interface Props {
 }
 
 export function HealthChecksSection({ enabled }: Props) {
-  const { data: summaries } = usePolling(
+  const { data: summaries, error } = usePolling(
     monitorApi.healthSummary,
     30_000,
     enabled,
   );
+
+  if (error && !summaries) {
+    return (
+      <section>
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-secondary)]">
+          Health checks externos
+        </h2>
+        <div className="rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger)]/5 p-3 text-xs text-[var(--color-danger)]">
+          Erro ao carregar health checks: <span className="font-mono">{error}</span>
+        </div>
+      </section>
+    );
+  }
 
   if (!summaries) {
     return (

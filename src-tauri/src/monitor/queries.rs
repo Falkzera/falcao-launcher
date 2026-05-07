@@ -15,7 +15,10 @@ pub struct MetricPoint {
 pub fn build_pool(database_url: &str) -> Result<Pool> {
     let parsed: tokio_postgres::Config = database_url.parse().context("invalid DATABASE_URL")?;
     deadpool_postgres::Pool::builder(deadpool_postgres::Manager::new(parsed, NoTls))
-        .max_size(2)
+        // 8 cobre fan-out: monitor_health_summary roda 3 endpoints × 4 queries
+        // concurrently via tokio::join!. Pool=2 gargalava e podia hang em waits
+        // longos. 8 é folgado pra desktop client + Postgres aguenta easy.
+        .max_size(8)
         .build()
         .context("build pool")
 }
