@@ -48,6 +48,7 @@ pub fn run() {
             external::open_in_files,
             external::kill_pid,
             external::spawn_claude,
+            external::spawn_claude_investigation,
             icon::resolve_icon,
             netstat::list_system_ports,
             claude::claude_snapshot,
