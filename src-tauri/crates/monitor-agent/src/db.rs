@@ -96,6 +96,51 @@ pub async fn insert_vercel_deployments(
     Ok(())
 }
 
+/// INSERT batch transacional pra `external_metrics`.
+/// UPSERT por (ts, service, metric) — re-run no mesmo segundo atualiza em vez de duplicar.
+pub async fn insert_external_metrics(
+    pool: &Pool,
+    rows: &[monitor_shared::ExternalMetric],
+) -> Result<()> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut client = pool.get().await.context("get pool client")?;
+    let tx = client.transaction().await.context("begin tx")?;
+    let stmt = tx
+        .prepare(
+            "INSERT INTO external_metrics
+             (ts, service, metric, value, quota, unit, period_start)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (ts, service, metric) DO UPDATE
+               SET value = EXCLUDED.value,
+                   quota = EXCLUDED.quota,
+                   unit  = EXCLUDED.unit,
+                   period_start = EXCLUDED.period_start",
+        )
+        .await
+        .context("prepare insert external_metrics")?;
+
+    for r in rows {
+        tx.execute(
+            &stmt,
+            &[
+                &r.ts,
+                &r.service,
+                &r.metric,
+                &r.value,
+                &r.quota,
+                &r.unit,
+                &r.period_start,
+            ],
+        )
+        .await
+        .context("execute insert external_metrics")?;
+    }
+    tx.commit().await.context("commit external_metrics tx")?;
+    Ok(())
+}
+
 pub async fn write_heartbeat(pool: &Pool, host: &str, version: &str) -> Result<()> {
     let client = pool.get().await?;
     client
