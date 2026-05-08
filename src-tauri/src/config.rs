@@ -13,6 +13,13 @@ pub struct ProjectConfig {
     pub custom_icon_path: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+pub struct DismissedVuln {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fix_version_at_time: Option<String>,
+    pub dismissed_at: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
     pub version: u32,
@@ -22,6 +29,11 @@ pub struct AppConfig {
     pub hidden: HashSet<String>,
     #[serde(default)]
     pub extra_paths: Vec<String>,
+    /// Vulnerabilidades dispensadas pelo usuário (Sprint B1 — Snyk-like).
+    /// Key: "source_id:cve_id" (ou "source_id:ghsa_id" / "source_id:package_name"
+    /// quando não há CVE). Permite UI esconder e restaurar quando há fix novo.
+    #[serde(default)]
+    pub dismissed_vulnerabilities: HashMap<String, DismissedVuln>,
 }
 
 impl Default for AppConfig {
@@ -31,6 +43,7 @@ impl Default for AppConfig {
             projects: HashMap::new(),
             hidden: HashSet::new(),
             extra_paths: Vec::new(),
+            dismissed_vulnerabilities: HashMap::new(),
         }
     }
 }
@@ -131,4 +144,37 @@ pub fn remove_extra_path(path: String) -> Result<(), String> {
         return Err(format!("path não estava na config: {}", path));
     }
     save(&app_config)
+}
+
+// ============================================================
+// Sprint B1 — Snyk-like (CVEs dispensados)
+// ============================================================
+
+#[tauri::command]
+pub fn dismiss_cve(
+    cve_key: String,
+    fix_version_at_time: Option<String>,
+) -> Result<(), String> {
+    let mut config = load();
+    config.dismissed_vulnerabilities.insert(
+        cve_key,
+        DismissedVuln {
+            fix_version_at_time,
+            dismissed_at: chrono::Utc::now(),
+        },
+    );
+    save(&config)
+}
+
+#[tauri::command]
+pub fn undismiss_cve(cve_key: String) -> Result<(), String> {
+    let mut config = load();
+    config.dismissed_vulnerabilities.remove(&cve_key);
+    save(&config)
+}
+
+#[tauri::command]
+pub fn list_dismissed_cves() -> Result<HashMap<String, DismissedVuln>, String> {
+    let config = load();
+    Ok(config.dismissed_vulnerabilities)
 }
