@@ -1,0 +1,28 @@
+{
+  "billingPeriod": {
+    "start": "2026-05-01T00:00:00.000Z",
+    "end": "2026-05-31T23:59:59.999Z"
+  },
+  "usage": {
+    "bandwidth": {
+      "usage": 12884901888,
+      "limit": 107374182400,
+      "unit": "bytes"
+    },
+    "buildMinutes": {
+      "usage": 134,
+      "limit": 6000,
+      "unit": "minutes"
+    },
+    "imageOptimizations": {
+      "usage": 412,
+      "limit": 5000,
+      "unit": "count"
+    },
+    "serverlessFunctionExecution": {
+      "usage": 28744,
+      "limit": 1000000,
+      "unit": "count"
+    }
+  }
+}
