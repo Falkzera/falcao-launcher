@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatByMetricName } from "../lib/format";
 import { monitorApi } from "../lib/monitor";
 import type { ChartSlot, MetricRef } from "../types/analysis";
 import type {
@@ -39,6 +40,12 @@ interface Props {
   onHover: (ts: number | null) => void;
   /** Notifica o pai dos pontos atualmente carregados (pro useAnalysisContext). */
   onSeriesLoaded: (slotId: string, series: MetricPoint[]) => void;
+  /**
+   * Quando presente, fixa teto do eixo Y. Útil pra métricas de "uso vs
+   * capacidade" (mem_used_bytes / disk_used_bytes) — pai computa via
+   * vmStatus e passa o total real.
+   */
+  yMax?: number;
 }
 
 export function AnalysisChartSlot({
@@ -54,6 +61,7 @@ export function AnalysisChartSlot({
   onBrushChange,
   onHover,
   onSeriesLoaded,
+  yMax,
 }: Props) {
   const [series, setSeries] = useState<MetricPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -123,11 +131,21 @@ export function AnalysisChartSlot({
         className="analysis-slot-drag-handle mb-2 flex cursor-move items-center justify-between gap-2"
         title="Arrastar pra mover (segure aqui)"
       >
-        <MetricPicker
-          value={slot.metric}
-          onChange={(ref) => onMetricChange(slot.id, ref)}
-          containers={containers}
-        />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {/* Drag handle visual — Sprint 5 polish (decorativo; o handle real
+              continua sendo a div .analysis-slot-drag-handle inteira) */}
+          <span
+            className="select-none text-base leading-none text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)]"
+            aria-hidden="true"
+          >
+            ⋮⋮
+          </span>
+          <MetricPicker
+            value={slot.metric}
+            onChange={(ref) => onMetricChange(slot.id, ref)}
+            containers={containers}
+          />
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -178,10 +196,21 @@ export function AnalysisChartSlot({
                 stroke="var(--color-text-muted)"
                 fontSize={10}
               />
-              <YAxis stroke="var(--color-text-muted)" fontSize={10} />
+              <YAxis
+                stroke="var(--color-text-muted)"
+                fontSize={10}
+                tickFormatter={(v: number) =>
+                  formatByMetricName(slot.metric.metric, v)
+                }
+                width={64}
+                domain={yMax != null ? [0, yMax] : undefined}
+              />
               <Tooltip
                 labelFormatter={(ts) =>
                   new Date(Number(ts)).toLocaleString("pt-BR")
+                }
+                formatter={(value: unknown) =>
+                  formatByMetricName(slot.metric.metric, Number(value))
                 }
                 contentStyle={{
                   background: "var(--color-bg-secondary)",

@@ -84,8 +84,8 @@ export function VmHeader({ enabled }: Props) {
         </span>
       </div>
 
-      {/* Linha 1: cards "header" — Agente, Load, Custo */}
-      <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
+      {/* Linha 1: cards "header" — Agente, Uptime, Load, Custo */}
+      <div className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
         <div>
           <div className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
             Agente
@@ -97,6 +97,14 @@ export function VmHeader({ enabled }: Props) {
             {heartbeatAge !== null
               ? `heartbeat há ${heartbeatAge}s`
               : "sem heartbeat"}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wide text-[var(--color-text-secondary)]">
+            Uptime
+          </div>
+          <div className="font-mono text-[var(--color-text-primary)]">
+            {formatUptime(status.vm_age_hours)}
           </div>
         </div>
         <div>
@@ -162,4 +170,28 @@ export function VmHeader({ enabled }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * Formata uptime em string humana, escolhendo unidade apropriada.
+ *  < 1h   → "32 min"
+ *  < 24h  → "5h 32min" (ou "5h" se min == 0)
+ *  < 30d  → "12 dias"
+ *  ≥ 30d  → "2.0 meses (62 dias)"
+ */
+function formatUptime(hours: number | null): string {
+  if (hours == null || !Number.isFinite(hours) || hours < 0) return "—";
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+  const days = hours / 24;
+  if (days < 30) {
+    const d = Math.floor(days);
+    return `${d} dia${d >= 2 ? "s" : ""}`;
+  }
+  const months = days / 30;
+  return `${months.toFixed(1)} meses (${Math.floor(days)} dias)`;
 }
