@@ -45,6 +45,13 @@ export const monitorApi = {
       sinceIso,
       untilIso,
     }),
+  // Spawn Claude Code com prompt pré-populado (Sprint 4). Tauri auto-converte
+  // camelCase (JS) → snake_case (Rust) nos args.
+  spawnClaudeInvestigation: (promptMarkdown: string, targetDir: string) =>
+    invoke<void>("spawn_claude_investigation", {
+      promptMarkdown,
+      targetDir,
+    }),
   healthSummary: () =>
     invoke<HealthCheckSummary[]>("monitor_health_summary"),
   listStacks: () => invoke<StackSummary[]>("monitor_list_stacks"),

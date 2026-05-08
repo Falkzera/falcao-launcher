@@ -11,6 +11,7 @@ import type { ContainerInfo, MetricPoint, WindowKey } from "../types/monitor";
 import { AnalysisGrid } from "./AnalysisGrid";
 import { AnalysisLayoutPicker } from "./AnalysisLayoutPicker";
 import { AnalysisLogsPanel } from "./AnalysisLogsPanel";
+import { ClaudeInvestigationModal } from "./ClaudeInvestigationModal";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 
 interface Props {
@@ -64,8 +65,8 @@ export function AnalysisPage({
 
   const effectiveRange = brushRange ?? presetRange;
 
-  // Context serializável (Sprint 4 / Claude)
-  useAnalysisContext({
+  // Context serializável (consumido pelo ClaudeInvestigationModal — Sprint 4)
+  const analysisContext = useAnalysisContext({
     preset,
     presetRange,
     brushRange,
@@ -78,6 +79,13 @@ export function AnalysisPage({
     lastFetchedLogs,
     layout: layoutsApi.currentLayout,
   });
+
+  // Sprint 4: modal "Investigar com Claude"
+  const [claudeModalOpen, setClaudeModalOpen] = useState(false);
+  // Pronto pra investigar quando todos os charts retornaram série (mesmo vazia).
+  const analysisReady = charts.every(
+    (slot) => chartSeriesById[slot.id] !== undefined,
+  );
 
   // ─── Handlers ──────────────────────────────────────────────────────────
   const handleAddChart = () => {
@@ -158,6 +166,14 @@ export function AnalysisPage({
         >
           ← Voltar pra VM
         </button>
+        <button
+          onClick={() => setClaudeModalOpen(true)}
+          disabled={!analysisReady}
+          className="rounded-md border border-[var(--color-accent-primary)]/40 bg-[var(--color-bg-secondary)] px-3 py-1 text-sm text-[var(--color-accent-primary)] transition hover:bg-[var(--color-accent-primary)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+          title={analysisReady ? "Abrir Claude Code com este contexto" : "Aguardando dados…"}
+        >
+          🤖 Investigar com Claude
+        </button>
         <AnalysisLayoutPicker
           layouts={layoutsApi.layouts}
           currentLayoutId={layoutsApi.currentLayout?.id ?? null}
@@ -220,6 +236,14 @@ export function AnalysisPage({
         containers={containerList}
         defaultContainer={initialContainer}
         onLogsFetched={setLastFetchedLogs}
+      />
+
+      {/* Sprint 4: modal "Investigar com Claude" */}
+      <ClaudeInvestigationModal
+        context={analysisContext}
+        primaryMetric={charts[0]?.metric ?? initialMetric}
+        open={claudeModalOpen}
+        onClose={() => setClaudeModalOpen(false)}
       />
     </div>
   );

@@ -17,6 +17,7 @@ russh = "0.45"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
 
 [package]
 name = "falcao-launcher"
@@ -60,3 +61,4 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 monitor-shared = { path = "crates/monitor-shared" }
 urlencoding = "2"
+uuid = { workspace = true }
