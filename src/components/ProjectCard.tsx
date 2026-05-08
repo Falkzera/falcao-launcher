@@ -9,6 +9,7 @@ import { SystemIcon } from "./SystemIcon";
 import { cardHover, cardVariants } from "../styles/animations";
 import type { ClaudeProjectState, Project, ProjectStatus } from "../types";
 import { ClaudeChip } from "./ClaudeChip";
+import { SecurityChip } from "./SecurityChip";
 import { SpawnClaudeButton } from "./SpawnClaudeButton";
 
 type ExternalListener = { port: number; pid: number };
@@ -24,6 +25,8 @@ type Props = {
   onToggleHidden: () => void;
   claudeState?: ClaudeProjectState | null;
   now?: number;
+  /** Sprint B1 — count de CVEs Critical/High abertos pra esse repo (Snyk-like). */
+  vulnCount?: number;
 };
 
 function initials(name: string): string {
@@ -73,6 +76,7 @@ export function ProjectCard({
   onToggleHidden,
   claudeState = null,
   now = Date.now(),
+  vulnCount = 0,
 }: Props) {
   const runnable = project.detected_script !== null;
   const isRunning = status === "running";
@@ -359,6 +363,7 @@ export function ProjectCard({
             </button>
           ))}
           <ClaudeChip state={claudeState} now={now} />
+          <SecurityChip count={vulnCount} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button

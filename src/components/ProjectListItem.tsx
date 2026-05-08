@@ -23,6 +23,8 @@ type Props = {
   onToggleHidden: () => void;
   claudeState?: ClaudeProjectState | null;
   now?: number;
+  /** Sprint B1 — count de CVEs Critical/High abertos (compartilhado com ProjectCard). */
+  vulnCount?: number;
 };
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
