@@ -81,6 +81,40 @@ Botão **"🤖 Investigar com Claude"** no header do `AnalysisPage` que abre Cla
 - `src/lib/serializeAnalysis.ts` — gerador Markdown estruturado + `estimatePromptSize`.
 - `src/lib/resolveTargetDir.ts` — auto-detect do diretório alvo.
 
+## Feature: Snyk-like — vulnerabilidades cross-repo (Sprint B1)
+
+Aba **"Segurança"** no topbar entre Skills e VM. Lista CVEs vindos de 3 fontes hybrid:
+- **Dependabot alerts** dos repos `Falkzera/*` (auto-discovery via `gh api /user/repos`)
+- **Trivy** scans nas imagens Docker rodando na VM (`caddy`, `falcao-monitor-db`, `falcao-financas-app`)
+- **GHSA cross-cutting** advisories que afetam packages dos teus repos
+
+Coleta diária via cron (GH Actions cron 06:07 UTC pra deps/GHSA + systemd timer na VM pra Trivy) + botão "🔄 Re-escanear agora" no header da aba.
+
+- **Spec:** `docs/superpowers/specs/2026-05-08-snyk-like-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-08-snyk-like.md`
+- **Migration:** `docs/superpowers/vm-migrations/008_vulnerabilities.sql` (hypertable, retention 90d, compression 7d)
+- **GitHub PAT:** `GH_PAT_SECURITY` em GitHub Secrets + `~/.config/falcao-monitor/.env` na VM
+- **Trivy install:** `curl -sfL .../install.sh | sudo sh -s -- -b /usr/local/bin` na VM (1x manual)
+- **Reuso:** SSH key dedicada `falcao-monitor-push` da Sprint 2 health checks (mesma chave + secrets)
+- **Dismiss persistente:** `~/.config/falcao-launcher/config.json` campo `dismissed_vulnerabilities` com `fix_version_at_time` — CVE reaparece quando `fix_version` muda
+
+### Componentes novos (Sprint B1)
+- `src/components/SecurityTab.tsx` — orquestrador da aba (filtros + lista + scan trigger)
+- `src/components/VulnerabilityRow.tsx` — item individual com severity chip + dismiss
+- `src/components/SecurityChip.tsx` — chip compacto pros ProjectCards (Critical/High count)
+- `src/components/SecurityScanProgress.tsx` — overlay com streaming durante scan on-demand
+
+### Backend novo
+- `src-tauri/src/monitor/security.rs` — queries SELECT (list_vulnerabilities + vuln_summary + vuln_count_by_repo)
+- `src-tauri/src/external.rs` — `trigger_trivy_scan_on_vm` (SSH + emit events) + `trigger_dependabot_scan_via_gh`
+- `src-tauri/src/config.rs` — `dismissed_vulnerabilities: HashMap<String, DismissedVuln>` + 3 comandos
+
+### Scripts novos
+- `scripts/scan-dependabot.sh` — gh api auto-discovery + GHSA cross-cutting
+- `scripts/push-vulnerabilities.sh` — pipe SSH command-restricted
+- `.github/workflows/security-scan.yml` — cron 0 7 6 * * * + workflow_dispatch
+- `/home/falcao/.local/bin/scan-trivy.sh` (na VM) + `falcao-trivy-scanner.timer` (systemd user, daily)
+
 ## Documentação por pasta (agent.md)
 
 Toda pasta com código deste projeto tem um `.agent.md` que outra LLM lê antes de mexer ali. Ver regras completas em `~/.claude/skills/falcao-default/SKILL.md` (seção "agent.md").

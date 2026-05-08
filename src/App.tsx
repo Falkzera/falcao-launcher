@@ -11,6 +11,8 @@ import { AddProjectModal } from "./components/AddProjectModal";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { SkillsView } from "./components/SkillsView";
 import { VmTab } from "./components/VmTab";
+import { SecurityTab } from "./components/SecurityTab";
+import { monitorApi } from "./lib/monitor";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -32,7 +34,7 @@ const SHOW_OFFLINE_WORKTREES_KEY = "falcao-launcher.showOfflineWorktrees";
 const VIEW_MODE_KEY = "falcao-launcher.viewMode";
 const TOP_VIEW_KEY = "falcao-launcher.topView";
 
-type TopView = "projects" | "skills" | "vm";
+type TopView = "projects" | "skills" | "vm" | "security";
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -63,10 +65,12 @@ function App() {
     const saved = localStorage.getItem(TOP_VIEW_KEY);
     if (saved === "skills") return "skills";
     if (saved === "vm") return "vm";
+    if (saved === "security") return "security";
     return "projects";
   });
   const [addingPath, setAddingPath] = useState(false);
   const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
+  const [vulnCountByRepo, setVulnCountByRepo] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => Date.now());
   const seqRef = useRef(0);
   const autoOpenRef = useRef(autoOpen);
@@ -256,6 +260,29 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Sprint B1 — busca count de CVEs por repo pra exibir SecurityChip nos
+  // ProjectCards. Polling 5min. SSH tunnel pode estar fechado se aba VM/Segurança
+  // nunca foi aberta — falha silenciosa.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCounts = () => {
+      monitorApi
+        .vulnCountByRepo()
+        .then((counts) => {
+          if (!cancelled) setVulnCountByRepo(counts);
+        })
+        .catch(() => {
+          // SSH tunnel pode estar fechado — silencioso
+        });
+    };
+    fetchCounts();
+    const id = setInterval(fetchCounts, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   const externalByProject = useMemo(() => {
     const sorted = [...projects].sort((a, b) => b.path.length - a.path.length);
     const map: Record<string, Array<{ port: number; pid: number }>> = {};
@@ -343,10 +370,16 @@ function App() {
     >
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="mb-6 flex items-center gap-1 border-b border-[var(--color-border-subtle)]">
-          {(["projects", "skills", "vm"] as TopView[]).map((v) => {
+          {(["projects", "skills", "security", "vm"] as TopView[]).map((v) => {
             const isActive = topView === v;
             const label =
-              v === "projects" ? "Projetos" : v === "skills" ? "Skills" : "VM";
+              v === "projects"
+                ? "Projetos"
+                : v === "skills"
+                  ? "Skills"
+                  : v === "security"
+                    ? "Segurança"
+                    : "VM";
             return (
               <button
                 key={v}
@@ -377,7 +410,9 @@ function App() {
                 ? "Falcão Launcher"
                 : topView === "skills"
                   ? "Skills"
-                  : "VM"}
+                  : topView === "security"
+                    ? "Segurança"
+                    : "VM"}
             </h1>
             <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
               {topView === "projects"
@@ -386,7 +421,9 @@ function App() {
                   : `${projects.length} projects · ${runningCount} running${externalCount > 0 ? ` · ${externalCount} externos` : ""}${offlineWorktreeCount > 0 && !showOfflineWorktrees ? ` · ${offlineWorktreeCount} worktrees offline` : ""}${hiddenCount > 0 && !showHidden ? ` · ${hiddenCount} ocultos` : ""}`
                 : topView === "skills"
                   ? "skills instaladas em ~/.claude/"
-                  : "falcao-main · CX23 · 162.55.217.189"}
+                  : topView === "security"
+                    ? "CVEs nos seus repos e imagens da VM"
+                    : "falcao-main · CX23 · 162.55.217.189"}
             </p>
           </div>
           <div className={topView === "projects" ? "flex items-center gap-2" : "hidden"}>
@@ -491,6 +528,8 @@ function App() {
 
         {topView === "skills" ? (
           <SkillsView />
+        ) : topView === "security" ? (
+          <SecurityTab />
         ) : topView === "vm" ? null : (
           <>
         {error && (
@@ -540,6 +579,7 @@ function App() {
                     onToggleHidden: () => handleToggleHidden(p.id, p.hidden),
                     claudeState: claudeByProjectPath[p.path] ?? null,
                     now,
+                    vulnCount: vulnCountByRepo[`Falkzera/${p.name}`] ?? 0,
                   };
                   return viewMode === "grid" ? (
                     <ProjectCard key={p.id} {...propsCommon} />

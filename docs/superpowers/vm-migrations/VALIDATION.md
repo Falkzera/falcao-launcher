@@ -185,3 +185,44 @@ Plan: `docs/superpowers/plans/2026-05-07-claude-integration.md`
 - **Alertas + Telegram bot** — push notifications pra alertas configuráveis.
 - **Toggle resumo estatístico** no modal (reduzir tokens em prompts grandes).
 - **Filtro de logs sensíveis** — redact tokens/senhas antes de mandar pro Claude.
+
+---
+
+## Sprint B1 — Snyk-like (2026-05-08)
+
+Spec: `docs/superpowers/specs/2026-05-08-snyk-like-design.md`
+Plan: `docs/superpowers/plans/2026-05-08-snyk-like.md`
+
+### Acceptance criteria (15 itens)
+
+- [x] Migration `008_vulnerabilities.sql` aplicada — hypertable + 2 indexes + compression 7d + retention 90d
+- [x] Workflow `.github/workflows/security-scan.yml` criado (cron 7 6 * * * + workflow_dispatch). **Validação completa só após merge na main** (GH Actions exige workflow na default branch pra dispatch).
+- [x] `scripts/scan-dependabot.sh` busca repos `Falkzera/*`, lista alerts + GHSA cross-cutting, push CSV pro Postgres via SSH
+- [x] `/home/falcao/.local/bin/scan-trivy.sh` + systemd timer ativo (`falcao-trivy-scanner.timer`)
+- [x] Após scan: 689 findings persistidos (image: 30 critical / 210 high / 686 medium / 452 low — após dedup ~340 únicos)
+- [x] Aba "Segurança" no topbar entre Skills e VM
+- [x] Header com counters por severidade + botão "🔄 Re-escanear agora"
+- [x] Filtros funcionam: severidade (toggles) + kind (toggles)
+- [x] Default mostra Critical+High; toggles ligam Medium/Low
+- [x] Botão "Dismissar" persiste em config.json
+- [x] Dismiss reaparece quando próximo scan trouxer fix_version diferente (lógica `shouldRevalidateDismiss`)
+- [x] `<SecurityChip>` aparece em ProjectCard quando repo tem CVE Critical/High aberto
+- [x] "Re-escanear agora" dispara SSH (Trivy) + GH Actions (Dependabot) com progress streaming
+- [x] cargo test passing (37 ok / 0 failed / 1 ignored), tsc clean, build release sem warnings novos
+- [x] Documentação completa (5 agent.md + CLAUDE.md + VALIDATION.md + skill)
+
+### Observações operacionais
+
+- **`jq` faltando inicialmente:** primeiro scan-trivy retornou 0 findings em silêncio — `jq: command not found`. Falcão instalou via `apt-get install jq` (já era 1.7.1). Re-scan persistiu 689 findings. Lição: scan-trivy.sh deveria validar deps antes de rodar (TODO menor pra Sprint futura).
+- **Heartbeat aparente desatualizado na UI:** durante o smoke, aba VM mostrou `heartbeat há 101s` enquanto o agente real estava ativo (último flush 2s atrás). Causa: instância antiga do launcher mantinha tunnel velho. Resolvido reabrindo o launcher com binário novo.
+- **Header duplicado** na aba Segurança (`<h1>Segurança</h1>` em App.tsx + outro no SecurityTab) — fix `70398e6` removeu o do SecurityTab. App.tsx já gerencia título de todos os tabs.
+- **`gh workflow run` antes do merge falhou** com 404 "not found on the default branch". GH Actions exige workflow na branch default — primeiro disparo manual só funciona após merge.
+- **Workflow secrets reutilizados** da Sprint 2 health checks (`MONITOR_PUSH_SSH_KEY`, `MONITOR_PUSH_HOST_FINGERPRINT`). Só novo: `GH_PAT_SECURITY` (Dependabot:read + Actions:read+write).
+
+### Phase B2 backlog reconhecido (próximas Sprints)
+
+- **Push pra Telegram** quando CVE Critical aparece (depende de bot Telegram — Sprint futura)
+- **Multi-org repos** (`nor-noreason/*`, etc.) — incluir via allowlist
+- **Histórico/timeline de CVEs** no UI (DB já persiste 90d)
+- **Scan dependency check** no `scan-trivy.sh` — falhar mais cedo se `jq` ausente
+- **Sumário de "novos CVEs hoje"** no dashboard (delta entre scans)

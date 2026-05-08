@@ -15,6 +15,12 @@ import type {
   StackSummary,
   VmStatus,
 } from "../types/monitor";
+import type {
+  DismissedVuln,
+  VulnFilters,
+  VulnSummary,
+  VulnerabilityRow,
+} from "../types/security";
 
 export const monitorApi = {
   openTunnel: () => invoke<number>("monitor_open_tunnel"),
@@ -57,6 +63,24 @@ export const monitorApi = {
   listStacks: () => invoke<StackSummary[]>("monitor_list_stacks"),
   stackDetail: (name: string) =>
     invoke<StackDetail>("monitor_stack_detail", { name }),
+  // Sprint B1 — Snyk-like
+  listVulnerabilities: (filters: VulnFilters) =>
+    invoke<VulnerabilityRow[]>("monitor_list_vulnerabilities", {
+      severities: filters.severities,
+      kinds: filters.kinds,
+    }),
+  vulnSummary: () => invoke<VulnSummary>("monitor_vuln_summary"),
+  vulnCountByRepo: () =>
+    invoke<Record<string, number>>("monitor_vuln_count_by_repo"),
+  triggerTrivyScan: () => invoke<void>("trigger_trivy_scan_on_vm"),
+  triggerDependabotScan: () =>
+    invoke<void>("trigger_dependabot_scan_via_gh"),
+  dismissCve: (cveKey: string, fixVersionAtTime: string | null) =>
+    invoke<void>("dismiss_cve", { cveKey, fixVersionAtTime }),
+  undismissCve: (cveKey: string) =>
+    invoke<void>("undismiss_cve", { cveKey }),
+  listDismissedCves: () =>
+    invoke<Record<string, DismissedVuln>>("list_dismissed_cves"),
 };
 
 /**
