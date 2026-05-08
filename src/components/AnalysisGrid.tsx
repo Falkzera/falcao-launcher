@@ -106,6 +106,7 @@ export function AnalysisGrid({
       containerPadding={[0, 0]}
       onLayoutChange={handleLayoutChange}
       draggableHandle=".analysis-slot-drag-handle"
+      draggableCancel=".analysis-no-drag"
       compactType="vertical"
       preventCollision={false}
     >

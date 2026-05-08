@@ -133,7 +133,7 @@ export function AnalysisChartSlot({
             e.stopPropagation();
             onRemove(slot.id);
           }}
-          className="rounded-md px-2 py-0.5 text-xs text-[var(--color-text-secondary)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
+          className="analysis-no-drag rounded-md px-2 py-0.5 text-xs text-[var(--color-text-secondary)] transition hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
           aria-label="Remover chart"
           title="Remover"
         >

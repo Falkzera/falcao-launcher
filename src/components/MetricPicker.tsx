@@ -66,7 +66,7 @@ export function MetricPicker({ value, onChange, containers }: Props) {
     <select
       value={refToValue(value)}
       onChange={handleChange}
-      className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 font-mono text-xs text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)]/60 focus:outline-none"
+      className="analysis-no-drag rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 font-mono text-xs text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)]/60 focus:outline-none"
       aria-label="Selecionar métrica"
     >
       <optgroup label="VM">

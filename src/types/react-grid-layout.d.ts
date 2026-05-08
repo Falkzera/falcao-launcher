@@ -30,6 +30,9 @@ declare module "react-grid-layout" {
     containerPadding?: [number, number];
     onLayoutChange?: (current: Layout[], all: Layouts) => void;
     draggableHandle?: string;
+    /** Selector CSS pra elementos que NÃO devem disparar drag dentro do handle.
+     *  Ex: ".analysis-no-drag" pra select/button interativos. */
+    draggableCancel?: string;
     compactType?: "vertical" | "horizontal" | null;
     preventCollision?: boolean;
     children: ReactNode;
