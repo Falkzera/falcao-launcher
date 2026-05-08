@@ -53,6 +53,21 @@ pub struct VercelDeployment {
     pub build_ms: Option<i32>,
 }
 
+/// Snapshot de uma métrica de custo/uso de um serviço externo (Sprint B3).
+///
+/// Heterogêneo demais pra `MetricRow` (carrega quota + period_start),
+/// vai pra hypertable dedicada `external_metrics`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalMetric {
+    pub ts: DateTime<Utc>,
+    pub service: String,        // "vercel" | "gh_actions" | "hetzner"
+    pub metric: String,         // "bandwidth_bytes" | "build_minutes" | etc
+    pub value: f64,
+    pub quota: Option<f64>,     // None = sem free tier (Hetzner cost)
+    pub unit: String,           // "bytes" | "minutes" | "count" | "usd"
+    pub period_start: Option<DateTime<Utc>>,
+}
+
 pub const HOST_NAME: &str = "falcao-main";
 pub const POLL_INTERVAL_SECS: u64 = 15;
 
