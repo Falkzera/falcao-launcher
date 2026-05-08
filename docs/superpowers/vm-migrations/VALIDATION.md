@@ -94,3 +94,56 @@ Plan: `docs/superpowers/plans/2026-05-07-vercel-stacks.md`
 
 Pedido pelo Falcão durante Sprint 2.5, parqueado pra próxima sprint:
 - **Modo análise** — gráficos expandidos em página/modal dedicada, com brush selection (range temporal arrastando o mouse), sincronização entre múltiplos charts (correlation), logs do período sob o chart, dashboard customizável (presets de layout + adição de charts), e hook futuro pra "Investigar com Claude" (passar contexto seleção+logs).
+
+---
+
+## Sprint 3 — Modo análise (2026-05-07)
+
+Spec: `docs/superpowers/specs/2026-05-07-modo-analise-design.md`
+Plan: `docs/superpowers/plans/2026-05-07-modo-analise.md`
+
+### Acceptance criteria (15 itens do spec)
+
+- [x] Click em VmMetricChart transiciona pra AnalysisPage pré-populado com aquele chart
+- [x] VmContainerDrawer e StackDrawer ganharam botão "🔍 Investigar período"
+- [x] Botão "← Voltar pra VM" volta ao dashboard
+- [x] Drag-drop em desktop funciona (react-grid-layout v1.5.3, breakpoint lg = 12 cols)
+- [x] Mobile (<600px) renderiza charts em stack vertical sem horizontal scroll (sm breakpoint static)
+- [x] Brush sincroniza visualmente em todos os charts (ReferenceLine verde nos start/end)
+- [x] Hover sincroniza crosshair em todos (ReferenceLine amber tracejada via hoverTs)
+- [x] Logs fetched manualmente via botão pelo container do select
+- [x] Range > 24h pra logs é bloqueado (front-side + back-side em monitor_fetch_logs_range)
+- [x] "Salvar layout como" persiste em localStorage `analysis:layouts:v1`
+- [x] Export gera JSON downloadável; import lê e adiciona à lista
+- [x] Schema corrompido / versão futura é tratado com mensagem + fallback (não trava UI)
+- [x] `useAnalysisContext` retorna estado serializável (Sprint 4 ready)
+- [x] Build release passa sem warnings novos
+- [x] Documentação atualizada (4 agent.md + CLAUDE.md)
+
+### Backend testes
+
+`cargo test -p falcao-launcher commands::tests`: 7/7 passing
+- `parses_iso_timestamps_to_utc`
+- `rejects_invalid_iso`
+- `rejects_range_over_24h`
+- `accepts_range_exactly_24h`
+- `rejects_until_before_since`
+- `validates_container_name_alphanumeric`
+- `rejects_container_name_with_shell_metachars`
+
+Full suite: 33 passed / 0 failed / 1 ignored.
+
+### Observações operacionais
+
+- **react-grid-layout v2.2.3 quebrou compat** — removeu `WidthProvider` HOC em favor de `useContainerWidth` hook + mudou shape de `Layout` (era item, virou array). Usamos v1.5.3 com `react: >= 16.3.0` peer (aceita React 19).
+- **`@types/react-grid-layout@2.1.0`** — stub deprecated com `main: ""` (sem types reais). Removido. Criado shim em `src/types/react-grid-layout.d.ts` declarando subset usado.
+- **localStorage quota:** uso típico ~5KB por layout. Quota ~5MB → ~1000 layouts antes de hit. Aceitável.
+- **Recharts `<Brush>` em mobile:** desabilitado via breakpoint sm com `static: true` no react-grid-layout. Comportamento touch não testado em hardware mobile real ainda.
+- **Bug pré-existente:** `pnpm-lock.yaml` mostra warning "Ignored build scripts: esbuild@0.27.7" — não introduzido pela Sprint 3, ignorado.
+
+### Phase 4 backlog reconhecido
+
+- **Integração Claude** (Sprint 4): botão "Investigar com Claude" que consome `useAnalysisContext` e abre conversa pré-populada.
+- **Web App PWA**: versão browser do launcher pra acesso pelo celular.
+- **Alertas + Telegram bot**: push notifications pra alertas configuráveis.
+- **Drag-drop touch em mobile**: paridade com desktop (~5 dias adicionais — adiado).

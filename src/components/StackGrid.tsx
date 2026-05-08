@@ -14,12 +14,15 @@ interface Props {
   onStacksChange?: (stacks: StackSummary[]) => void;
   /** Se false (default), esconde stacks só-frontend (sem container na VM). */
   showFrontendOnly?: boolean;
+  /** Repassado pro StackDrawer — botão "🔍 Investigar período" por container. */
+  onInvestigateContainer?: (containerName: string) => void;
 }
 
 export function StackGrid({
   enabled,
   onStacksChange,
   showFrontendOnly = false,
+  onInvestigateContainer,
 }: Props) {
   const { data: stacks, error } = usePolling(
     monitorApi.listStacks,
@@ -136,6 +139,14 @@ export function StackGrid({
             stackName={selectedStack}
             enabled={enabled}
             onClose={() => setSelectedStack(null)}
+            onInvestigateContainer={
+              onInvestigateContainer
+                ? (name) => {
+                    setSelectedStack(null); // fecha drawer ao entrar em análise
+                    onInvestigateContainer(name);
+                  }
+                : undefined
+            }
           />
         )}
       </AnimatePresence>

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toRate } from "../lib/metrics";
 import { useTunnel } from "../lib/monitor";
+import type { MetricRef } from "../types/analysis";
 import type { StackSummary, WindowKey } from "../types/monitor";
+import { AnalysisPage } from "./AnalysisPage";
 import { HealthChecksSection } from "./HealthChecksSection";
 import { SettingsMenu } from "./SettingsMenu";
 import { StackGrid } from "./StackGrid";
@@ -14,6 +16,10 @@ import { VmMetricChart } from "./VmMetricChart";
 
 const SHOW_FRONTEND_ONLY_STACKS_KEY = "vm:show_frontend_only_stacks";
 
+type VmView =
+  | { kind: "dashboard" }
+  | { kind: "analysis"; initialMetric: MetricRef; initialContainer: string | null };
+
 const WINDOW_LABELS: Record<WindowKey, string> = {
   "1h": "últimos 60 min",
   "6h": "últimas 6h",
@@ -24,6 +30,7 @@ const WINDOW_LABELS: Record<WindowKey, string> = {
 
 export function VmTab() {
   const { ready, error } = useTunnel();
+  const [vmView, setVmView] = useState<VmView>({ kind: "dashboard" });
   const [selectedContainer, setSelectedContainer] = useState<string | null>(
     null,
   );
@@ -49,6 +56,25 @@ export function VmTab() {
   const handleStacksChange = useCallback((next: StackSummary[]) => {
     setStacks(next);
   }, []);
+
+  const enterAnalysis = useCallback(
+    (metric: MetricRef, container: string | null = null) => {
+      setSelectedContainer(null); // fecha drawer se aberto
+      setVmView({ kind: "analysis", initialMetric: metric, initialContainer: container });
+    },
+    [],
+  );
+
+  if (vmView.kind === "analysis") {
+    return (
+      <AnalysisPage
+        enabled={ready}
+        initialMetric={vmView.initialMetric}
+        initialContainer={vmView.initialContainer}
+        onBack={() => setVmView({ kind: "dashboard" })}
+      />
+    );
+  }
 
   if (error) {
     return (
@@ -85,6 +111,7 @@ export function VmTab() {
               bucket={params.bucket}
               enabled={ready}
               format={(v) => v.toFixed(2)}
+              onClick={() => enterAnalysis({ kind: "vm", metric: "load_1m" })}
             />
             <VmMetricChart
               title="RAM usada"
@@ -94,6 +121,7 @@ export function VmTab() {
               bucket={params.bucket}
               enabled={ready}
               format={(v) => `${(v / 1e9).toFixed(2)} GB`}
+              onClick={() => enterAnalysis({ kind: "vm", metric: "mem_used_bytes" })}
             />
             <VmMetricChart
               title="CPU"
@@ -103,6 +131,7 @@ export function VmTab() {
               windowMinutes={params.minutes}
               bucket={params.bucket}
               enabled={ready}
+              onClick={() => enterAnalysis({ kind: "vm", metric: "cpu_pct" })}
             />
             <VmMetricChart
               title="Disco usado"
@@ -112,6 +141,7 @@ export function VmTab() {
               bucket={params.bucket}
               enabled={ready}
               format={(v) => `${(v / 1e9).toFixed(2)} GB`}
+              onClick={() => enterAnalysis({ kind: "vm", metric: "disk_used_bytes" })}
             />
             <VmMetricChart
               title="Network out (rate)"
@@ -122,6 +152,7 @@ export function VmTab() {
               enabled={ready}
               transform={toRate}
               format={(v) => `${(v / 1e6).toFixed(2)} MB/s`}
+              onClick={() => enterAnalysis({ kind: "vm", metric: "net_tx_bytes" })}
             />
           </div>
         </section>
@@ -157,6 +188,9 @@ export function VmTab() {
             enabled={ready}
             onStacksChange={handleStacksChange}
             showFrontendOnly={showFrontendOnlyStacks}
+            onInvestigateContainer={(name) =>
+              enterAnalysis({ kind: "container", resource: name, metric: "cpu_pct" }, name)
+            }
           />
         </section>
 
@@ -179,6 +213,9 @@ export function VmTab() {
             containerName={selectedContainer}
             enabled={ready}
             onClose={() => setSelectedContainer(null)}
+            onInvestigate={(name) =>
+              enterAnalysis({ kind: "container", resource: name, metric: "cpu_pct" }, name)
+            }
           />
         )}
       </AnimatePresence>

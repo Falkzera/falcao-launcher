@@ -4,6 +4,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
+import type { LogsRangeResponse } from "../types/analysis";
 import type {
   ContainerInfo,
   HealthCheckSummary,
@@ -38,6 +39,12 @@ export const monitorApi = {
     }),
   fetchLogs: (container: string, lines: number) =>
     invoke<string>("monitor_fetch_logs", { container, lines }),
+  fetchLogsRange: (container: string, sinceIso: string, untilIso: string) =>
+    invoke<LogsRangeResponse>("monitor_fetch_logs_range", {
+      container,
+      sinceIso,
+      untilIso,
+    }),
   healthSummary: () =>
     invoke<HealthCheckSummary[]>("monitor_health_summary"),
   listStacks: () => invoke<StackSummary[]>("monitor_list_stacks"),

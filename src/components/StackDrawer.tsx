@@ -19,6 +19,9 @@ interface Props {
   stackName: string;
   enabled: boolean;
   onClose: () => void;
+  /** Quando presente, renderiza botão "🔍 Investigar período" no header
+   *  de cada container do bloco backend. Sprint 3. */
+  onInvestigateContainer?: (containerName: string) => void;
 }
 
 const WINDOW_LABELS: Record<WindowKey, string> = {
@@ -29,7 +32,12 @@ const WINDOW_LABELS: Record<WindowKey, string> = {
   "30d": "últimos 30 dias",
 };
 
-export function StackDrawer({ stackName, enabled, onClose }: Props) {
+export function StackDrawer({
+  stackName,
+  enabled,
+  onClose,
+  onInvestigateContainer,
+}: Props) {
   const fetchDetail = useCallback(
     () => monitorApi.stackDetail(stackName),
     [stackName],
@@ -86,6 +94,7 @@ export function StackDrawer({ stackName, enabled, onClose }: Props) {
             window={drawerWindow}
             onWindowChange={setDrawerWindow}
             windowParams={params}
+            onInvestigateContainer={onInvestigateContainer}
           />
 
           {detail?.endpoint_health && (
@@ -225,12 +234,14 @@ function ContainersSection({
   window: windowKey,
   onWindowChange,
   windowParams,
+  onInvestigateContainer,
 }: {
   containers: ContainerInfo[];
   enabled: boolean;
   window: WindowKey;
   onWindowChange: (w: WindowKey) => void;
   windowParams: { minutes: number; bucket: "1 minute" | "5 minutes" | "1 hour" | "1 day" | null };
+  onInvestigateContainer?: (name: string) => void;
 }) {
   if (containers.length === 0) {
     return (
@@ -259,6 +270,7 @@ function ContainersSection({
             container={c}
             enabled={enabled}
             windowParams={windowParams}
+            onInvestigate={onInvestigateContainer}
           />
         ))}
       </div>
@@ -270,10 +282,12 @@ function ContainerBlock({
   container,
   enabled,
   windowParams,
+  onInvestigate,
 }: {
   container: ContainerInfo;
   enabled: boolean;
   windowParams: { minutes: number; bucket: "1 minute" | "5 minutes" | "1 hour" | "1 day" | null };
+  onInvestigate?: (name: string) => void;
 }) {
   const [logs, setLogs] = useState<string | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -299,6 +313,15 @@ function ContainerBlock({
         <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
           {container.name}
         </span>
+        {onInvestigate && (
+          <button
+            onClick={() => onInvestigate(container.name)}
+            className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[10px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
+            title="Abre o modo análise focado neste container"
+          >
+            🔍 Investigar período
+          </button>
+        )}
         <span className="text-[10px] text-[var(--color-text-muted)]">
           {container.last_seen
             ? `visto ${formatRelative(new Date(container.last_seen))}`

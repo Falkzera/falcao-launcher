@@ -42,6 +42,30 @@ Aba "VM" agora agrega **frontend Vercel + backend container** numa visão unific
 - `src/components/VercelStatusBadge.tsx` — dot + label de state (READY/ERROR/BUILDING/QUEUED/CANCELED).
 - `src/components/Loading.tsx` — primitivos reutilizáveis: `<Spinner>`, `<LoadingMessages>`, `<DrawerLoadingOverlay>`, `<InlineLoading>`.
 
+## Feature: Modo análise (Sprint 3)
+
+Click num `VmMetricChart` ou no botão "🔍 Investigar período" dos drawers (Container/Stack) abre uma página dedicada de análise dentro da aba VM. Grid drag-drop com `react-grid-layout` (responsivo lg/md/sm), brush selection sincronizado entre charts, logs do período sob demanda, layouts nomeados em localStorage com export/import JSON.
+
+- **Spec:** `docs/superpowers/specs/2026-05-07-modo-analise-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-07-modo-analise.md`
+- **Backend novo:** `monitor_fetch_logs_range` (Tauri command, `docker logs --since/--until` via SSH, max 24h, regex container).
+- **Stack adicional:** `react-grid-layout@^1.5` + shim de types em `src/types/react-grid-layout.d.ts` (a stub `@types/react-grid-layout` é deprecated).
+- **Persistência:** localStorage `analysis:layouts:v1` versionado (schema migration tolerante); export/import JSON pra portar entre máquinas.
+- **Hook futuro:** `useAnalysisContext` centraliza estado serializável pra integração Claude (Sprint 4) — sem UI Claude por enquanto.
+- **Mobile (<600px):** modo viewer — charts em stack vertical sem drag-drop, brush desabilitado.
+
+### Componentes frontend novos (Sprint 3)
+- `src/components/AnalysisPage.tsx` — orquestrador (state global preset/brushRange/charts/hover/logs).
+- `src/components/AnalysisGrid.tsx` — wrapper `<ResponsiveReactGridLayout>` com 3 breakpoints.
+- `src/components/AnalysisChartSlot.tsx` — slot Recharts + Brush + crosshair sync.
+- `src/components/AnalysisLogsPanel.tsx` — fetch manual + selectbox container.
+- `src/components/AnalysisLayoutPicker.tsx` — gerenciamento de layouts no header.
+- `src/components/MetricPicker.tsx` — select agrupado VM/Hetzner/Containers.
+
+### Hooks novos (Sprint 3)
+- `src/lib/useAnalysisLayouts.ts` — CRUD localStorage + export/import + schema migration tolerante.
+- `src/lib/useAnalysisContext.ts` — agregador serializável pra Sprint 4 (Claude).
+
 ## Documentação por pasta (agent.md)
 
 Toda pasta com código deste projeto tem um `.agent.md` que outra LLM lê antes de mexer ali. Ver regras completas em `~/.claude/skills/falcao-default/SKILL.md` (seção "agent.md").

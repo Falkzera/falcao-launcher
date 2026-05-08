@@ -180,6 +180,98 @@ pub async fn monitor_fetch_logs(container: String, lines: u32) -> Result<String,
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+/// Resposta do `monitor_fetch_logs_range`. Inclui flag `truncated` pra UI avisar
+/// quando o output bateu no limite do `--tail` (caso o range tenha gerado mais
+/// linhas que o limite).
+#[derive(serde::Serialize)]
+pub struct LogsRangeResponse {
+    pub text: String,
+    pub truncated: bool,
+    pub line_count: usize,
+}
+
+/// Limite duro de tamanho da janela: queries muito longas travam a SSH session
+/// e o usuário acaba esperando por nada. 24h cobre o caso real (preset 24h é
+/// o maior que o user pode arrastar via brush sem precisar mudar de preset).
+const MAX_RANGE_HOURS: i64 = 24;
+
+/// Tail máximo retornado pelo `docker logs`. Mantemos baixo (2k) pra UI não
+/// engasgar; UI avisa truncamento via flag `truncated`.
+const MAX_TAIL_LINES: u32 = 2000;
+
+/// Valida nome de container — só ASCII alfanumérico + `_.-`.
+/// Mesma regra usada por `monitor_fetch_logs` (anti shell-injection).
+fn is_valid_container_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+}
+
+/// Retorna logs de um container num range temporal arbitrário via
+/// `docker logs --since <iso> --until <iso>` por SSH.
+///
+/// Validações:
+///   - container name: ASCII + `_.-` (anti shell-injection)
+///   - range max 24h (anti SSH timeout)
+///   - until > since
+///
+/// Truncamento: docker `--tail 2000` corta saída — UI avisa via flag.
+#[tauri::command]
+pub async fn monitor_fetch_logs_range(
+    container: String,
+    since_iso: String,
+    until_iso: String,
+) -> Result<LogsRangeResponse, String> {
+    if !is_valid_container_name(&container) {
+        return Err(format!("invalid container name: {container}"));
+    }
+
+    let since: DateTime<Utc> = since_iso
+        .parse()
+        .map_err(|e: chrono::ParseError| format!("invalid since_iso: {e}"))?;
+    let until: DateTime<Utc> = until_iso
+        .parse()
+        .map_err(|e: chrono::ParseError| format!("invalid until_iso: {e}"))?;
+
+    if until <= since {
+        return Err("until_iso must be after since_iso".to_string());
+    }
+
+    let span = until - since;
+    if span.num_hours() > MAX_RANGE_HOURS {
+        return Err(format!(
+            "range too large: {}h (max {}h)",
+            span.num_hours(),
+            MAX_RANGE_HOURS
+        ));
+    }
+
+    let since_arg = since.to_rfc3339();
+    let until_arg = until.to_rfc3339();
+
+    let cmd = format!(
+        "docker logs --since '{}' --until '{}' --tail {} {} 2>&1",
+        since_arg, until_arg, MAX_TAIL_LINES, container
+    );
+
+    let output = tokio::process::Command::new("ssh")
+        .args(["falcao@162.55.217.189", &cmd])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    let line_count = text.lines().count();
+    let truncated = line_count >= MAX_TAIL_LINES as usize;
+
+    Ok(LogsRangeResponse {
+        text,
+        truncated,
+        line_count,
+    })
+}
+
 /// Resumo dos 3 endpoints monitorados externamente (Sprint 2).
 /// Roda as 3 fetches em paralelo via tokio::join!. Em caso de falha individual,
 /// retorna placeholder com `last_error` setado pra UI conseguir mostrar o card.
@@ -256,4 +348,65 @@ pub async fn monitor_stack_detail(
     stacks::stack_detail(&pool, &name)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    fn parse(iso: &str) -> Result<DateTime<Utc>, String> {
+        iso.parse::<DateTime<Utc>>().map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn parses_iso_timestamps_to_utc() {
+        let ts = parse("2026-05-07T12:00:00Z").expect("should parse");
+        assert_eq!(ts.timestamp(), 1778155200);
+    }
+
+    #[test]
+    fn rejects_invalid_iso() {
+        assert!(parse("not-a-date").is_err());
+        assert!(parse("2026-05-07").is_err()); // sem hora
+    }
+
+    #[test]
+    fn rejects_range_over_24h() {
+        let since = parse("2026-05-07T00:00:00Z").unwrap();
+        let until = since + Duration::hours(MAX_RANGE_HOURS + 1);
+        let span = until - since;
+        assert!(span.num_hours() > MAX_RANGE_HOURS);
+    }
+
+    #[test]
+    fn accepts_range_exactly_24h() {
+        let since = parse("2026-05-07T00:00:00Z").unwrap();
+        let until = since + Duration::hours(MAX_RANGE_HOURS);
+        let span = until - since;
+        assert_eq!(span.num_hours(), MAX_RANGE_HOURS);
+    }
+
+    #[test]
+    fn rejects_until_before_since() {
+        let since = parse("2026-05-07T12:00:00Z").unwrap();
+        let until = since - Duration::minutes(1);
+        assert!(until < since);
+    }
+
+    #[test]
+    fn validates_container_name_alphanumeric() {
+        assert!(is_valid_container_name("falcao-financas"));
+        assert!(is_valid_container_name("nginx_prod-2"));
+        assert!(is_valid_container_name("a.b.c"));
+    }
+
+    #[test]
+    fn rejects_container_name_with_shell_metachars() {
+        assert!(!is_valid_container_name(""));
+        assert!(!is_valid_container_name("foo; rm -rf /"));
+        assert!(!is_valid_container_name("foo bar"));
+        assert!(!is_valid_container_name("foo$bar"));
+        assert!(!is_valid_container_name("foo\nbar"));
+    }
 }
