@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { toRate } from "../lib/metrics";
 import { monitorApi } from "../lib/monitor";
 import { slideInRight } from "../styles/animations";
 import type { WindowKey } from "../types/monitor";
@@ -97,7 +98,7 @@ export function VmContainerDrawer({
               onChange={setDrawerWindow}
             />
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <VmMetricChart
               title="CPU"
               source="container"
@@ -119,6 +120,18 @@ export function VmContainerDrawer({
               bucket={params.bucket}
               enabled={enabled}
               pollMs={5_000}
+            />
+            <VmMetricChart
+              title="Network out (rate)"
+              source="container"
+              resource={containerName}
+              metric="net_tx_bytes"
+              windowMinutes={params.minutes}
+              bucket={params.bucket}
+              enabled={enabled}
+              pollMs={5_000}
+              transform={toRate}
+              format={(v) => `${(v / 1e6).toFixed(2)} MB/s`}
             />
           </div>
         </section>
