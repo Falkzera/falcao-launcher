@@ -12,7 +12,10 @@ import { SettingsMenu } from "./components/SettingsMenu";
 import { SkillsView } from "./components/SkillsView";
 import { VmTab } from "./components/VmTab";
 import { SecurityTab } from "./components/SecurityTab";
+import { CostTab } from "./components/CostTab";
+import { CostChip } from "./components/CostChip";
 import { monitorApi } from "./lib/monitor";
+import type { CostUsage } from "./types/costs";
 import { containerVariants } from "./styles/animations";
 import type {
   AllocatedPortsPayload,
@@ -34,7 +37,7 @@ const SHOW_OFFLINE_WORKTREES_KEY = "falcao-launcher.showOfflineWorktrees";
 const VIEW_MODE_KEY = "falcao-launcher.viewMode";
 const TOP_VIEW_KEY = "falcao-launcher.topView";
 
-type TopView = "projects" | "skills" | "vm" | "security";
+type TopView = "projects" | "skills" | "vm" | "security" | "custos";
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -66,11 +69,13 @@ function App() {
     if (saved === "skills") return "skills";
     if (saved === "vm") return "vm";
     if (saved === "security") return "security";
+    if (saved === "custos") return "custos";
     return "projects";
   });
   const [addingPath, setAddingPath] = useState(false);
   const [claudeStates, setClaudeStates] = useState<ClaudeProjectState[]>([]);
   const [vulnCountByRepo, setVulnCountByRepo] = useState<Record<string, number>>({});
+  const [costSummary, setCostSummary] = useState<CostUsage[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const seqRef = useRef(0);
   const autoOpenRef = useRef(autoOpen);
@@ -283,6 +288,29 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const tick = () => {
+      monitorApi
+        .costSummary()
+        .then((data) => {
+          if (!cancelled) setCostSummary(data);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const id = setInterval(tick, 5 * 60 * 1000); // 5min
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const dangerCount = useMemo(
+    () => costSummary.filter((m) => (m.pct ?? 0) >= 90).length,
+    [costSummary],
+  );
+
   const externalByProject = useMemo(() => {
     const sorted = [...projects].sort((a, b) => b.path.length - a.path.length);
     const map: Record<string, Array<{ port: number; pid: number }>> = {};
@@ -370,7 +398,7 @@ function App() {
     >
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="mb-6 flex items-center gap-1 border-b border-[var(--color-border-subtle)]">
-          {(["projects", "skills", "security", "vm"] as TopView[]).map((v) => {
+          {(["projects", "skills", "security", "custos", "vm"] as TopView[]).map((v) => {
             const isActive = topView === v;
             const label =
               v === "projects"
@@ -379,7 +407,9 @@ function App() {
                   ? "Skills"
                   : v === "security"
                     ? "Segurança"
-                    : "VM";
+                    : v === "custos"
+                      ? "Custos"
+                      : "VM";
             return (
               <button
                 key={v}
@@ -391,6 +421,7 @@ function App() {
                 }
               >
                 {label}
+                {v === "custos" && <CostChip count={dangerCount} />}
                 {isActive && (
                   <motion.span
                     layoutId="top-view-underline"
@@ -412,7 +443,9 @@ function App() {
                   ? "Skills"
                   : topView === "security"
                     ? "Segurança"
-                    : "VM"}
+                    : topView === "custos"
+                      ? "Custos"
+                      : "VM"}
             </h1>
             <p className="mt-1 text-sm font-light text-[var(--color-text-secondary)]">
               {topView === "projects"
@@ -423,7 +456,9 @@ function App() {
                   ? "skills instaladas em ~/.claude/"
                   : topView === "security"
                     ? "CVEs nos seus repos e imagens da VM"
-                    : "falcao-main · CX23 · 162.55.217.189"}
+                    : topView === "custos"
+                      ? "Vercel · GitHub Actions · Hetzner"
+                      : "falcao-main · CX23 · 162.55.217.189"}
             </p>
           </div>
           <div className={topView === "projects" ? "flex items-center gap-2" : "hidden"}>
@@ -530,6 +565,8 @@ function App() {
           <SkillsView />
         ) : topView === "security" ? (
           <SecurityTab />
+        ) : topView === "custos" ? (
+          <CostTab />
         ) : topView === "vm" ? null : (
           <>
         {error && (
