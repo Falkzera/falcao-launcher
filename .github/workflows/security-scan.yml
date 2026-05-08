@@ -1,0 +1,55 @@
+name: Security scan (Dependabot + GHSA cross-cutting)
+
+on:
+  schedule:
+    # Diariamente às 06:07 UTC (03:07 Brasil). Minuto :07 fora dos
+    # minutos de pico do GH Actions (:00, :05, :10...).
+    - cron: "7 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan Dependabot + GHSA + push to VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run scan
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_SECURITY }}
+        run: |
+          ./scripts/scan-dependabot.sh > /tmp/vulns.csv
+          echo "=== Lines collected (incluindo header) ==="
+          wc -l /tmp/vulns.csv
+          echo "=== Sample (primeiras 5 linhas) ==="
+          head -5 /tmp/vulns.csv
+
+      - name: Setup SSH (key + pinned host fingerprint)
+        env:
+          SSH_KEY: ${{ secrets.MONITOR_PUSH_SSH_KEY }}
+          HOST_FINGERPRINT: ${{ secrets.MONITOR_PUSH_HOST_FINGERPRINT }}
+        run: |
+          mkdir -p ~/.ssh
+          # printf preserva o newline final do PEM (echo strip-aria)
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/monitor_push
+          chmod 600 ~/.ssh/monitor_push
+          # Pin do host key — evita TOFU no first-contact
+          printf '%s\n' "$HOST_FINGERPRINT" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Push vulnerabilities to VM
+        env:
+          MONITOR_PUSH_SSH_KEY_PATH: /home/runner/.ssh/monitor_push
+          MONITOR_PUSH_KNOWN_HOSTS: /home/runner/.ssh/known_hosts
+        run: |
+          ./scripts/push-vulnerabilities.sh /tmp/vulns.csv
+          echo "=== Push concluído ==="
