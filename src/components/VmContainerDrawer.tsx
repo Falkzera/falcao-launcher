@@ -10,6 +10,9 @@ interface Props {
   containerName: string;
   enabled: boolean;
   onClose: () => void;
+  /** Quando presente, renderiza botão "🔍 Investigar período" no header
+   *  que abre o modo análise pré-populado com este container. Sprint 3. */
+  onInvestigate?: (containerName: string) => void;
 }
 
 const WINDOW_LABELS: Record<WindowKey, string> = {
@@ -24,6 +27,7 @@ export function VmContainerDrawer({
   containerName,
   enabled,
   onClose,
+  onInvestigate,
 }: Props) {
   const [logs, setLogs] = useState<string | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -62,13 +66,24 @@ export function VmContainerDrawer({
             {containerName}
           </h3>
         </div>
-        <button
-          onClick={onClose}
-          className="rounded-md px-2 py-1 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
-          aria-label="Fechar"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-2">
+          {onInvestigate && (
+            <button
+              onClick={() => onInvestigate(containerName)}
+              className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
+              title="Abre o modo análise focado neste container"
+            >
+              🔍 Investigar período
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]"
+            aria-label="Fechar"
+          >
+            ✕
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 space-y-6 overflow-y-auto p-5">
