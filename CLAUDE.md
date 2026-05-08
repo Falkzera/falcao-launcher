@@ -115,6 +115,30 @@ Coleta diária via cron (GH Actions cron 06:07 UTC pra deps/GHSA + systemd timer
 - `.github/workflows/security-scan.yml` — cron 0 7 6 * * * + workflow_dispatch
 - `/home/falcao/.local/bin/scan-trivy.sh` (na VM) + `falcao-trivy-scanner.timer` (systemd user, daily)
 
+## Feature: Monitor de custos multi-serviço (Sprint B3)
+
+Aba **"Custos"** no topbar entre Segurança e VM. Agrega Vercel + GitHub Actions + Hetzner em hypertable nova `external_metrics`.
+
+- Coletores Rust no `monitor-agent` (v0.3.0) tick 1h: `vercel_usage` (GET /v1/usage → bandwidth + build_minutes + image_optimization + function_invocations) e `gh_actions` (GET /users/Falkzera/settings/billing/actions → minutes_used).
+- Coletor `hetzner.rs` espelha `cost_accumulated_usd` em `external_metrics` (mantém INSERT em `metrics` pra compat com `VmHeader` existente).
+- Tokens reusados: `VERCEL_TOKEN` (Sprint 2) + `GH_PAT_SECURITY` (Sprint B1) em `/home/falcao/.config/falcao-monitor/.env` na VM.
+- Schema heterogêneo: `(ts, service, metric, value, quota, unit, period_start)`. Compression 7d, retention 90d. UPSERT em `(ts, service, metric)`.
+- Thresholds: amber 70%, vermelho 90%. Chip danger acende na topbar quando alguma métrica passa 90%.
+
+### Componentes novos (Sprint B3)
+- `src/components/CostTab.tsx` — orquestrador (3 cards + chart histórico)
+- `src/components/CostServiceCard.tsx` — card por serviço com lista de métricas
+- `src/components/CostUsageBar.tsx` — barra colorida com pctColor 4-state
+- `src/components/CostHistoryChart.tsx` — Recharts LineChart 30d
+- `src/components/CostChip.tsx` — chip danger na topbar
+
+### Backend novo
+- `src-tauri/src/monitor/costs.rs` — `cost_summary()` + `cost_history()`
+- 2 commands Tauri: `monitor_cost_summary`, `monitor_cost_history`
+
+### Migration
+- `docs/superpowers/vm-migrations/009_external_metrics.sql`
+
 ## Documentação por pasta (agent.md)
 
 Toda pasta com código deste projeto tem um `.agent.md` que outra LLM lê antes de mexer ali. Ver regras completas em `~/.claude/skills/falcao-default/SKILL.md` (seção "agent.md").
@@ -188,4 +212,4 @@ Cada pasta lógica do projeto tem um `.agent.md` explicando o que vive ali. Ler 
 
 ## Estado conhecido
 
-Roadmap completo (fases 1–5 + empacotamento + sub-projetos D/A/B) na skill. Features atuais: scan + run/stop/logs + detecção de porta + auto-open browser + favicons + busca + atalhos + auto-allocação de portas + override por projeto + esconder/adicionar projetos + abrir VSCode/Ghostty/Files + ícones do tema do sistema + light mode + redesign Falcão System Design + seletor de logo customizada + **worktree discovery** (`.claude/worktrees/*`) + **scanner de portas do sistema** (cyan EXT chip pra processos rodando fora do launcher) + **pseudo-monorepos** (parent sem package.json + filhos com) + **toggle grid/list view** + **settings menu refinado** + **Claude Code awareness** (chip indigo ativo/histórico, drawer com tabs Logs/Claude, chart Recharts de tokens com toggle dia/mês/ano, lista de sessões com aiTitle + cost equivalente, spawn Claude here) + **VM Monitor** (Postgres+TimescaleDB na Hetzner, agente Rust 24/7, dashboard Recharts) + **Health checks externos** (UptimeRobot caseiro via GH Actions cron) + **Vercel stacks** (frontend Vercel + backend container agregados via label `monitor.stack`, drawer dedicado, loading overlay com spinner+mensagens cíclicas+reticências animadas, engrenagem de preferências). Próximos prováveis: **modo análise** (gráficos expandidos com brush + sync entre charts + logs do período), **alertas + Telegram bot**, **web app PWA** pra celular, **monitor de custos multi-serviço** (Vercel/Supabase/GH Actions).
+Roadmap completo (fases 1–5 + empacotamento + sub-projetos D/A/B) na skill. Features atuais: scan + run/stop/logs + detecção de porta + auto-open browser + favicons + busca + atalhos + auto-allocação de portas + override por projeto + esconder/adicionar projetos + abrir VSCode/Ghostty/Files + ícones do tema do sistema + light mode + redesign Falcão System Design + seletor de logo customizada + **worktree discovery** (`.claude/worktrees/*`) + **scanner de portas do sistema** (cyan EXT chip pra processos rodando fora do launcher) + **pseudo-monorepos** (parent sem package.json + filhos com) + **toggle grid/list view** + **settings menu refinado** + **Claude Code awareness** (chip indigo ativo/histórico, drawer com tabs Logs/Claude, chart Recharts de tokens com toggle dia/mês/ano, lista de sessões com aiTitle + cost equivalente, spawn Claude here) + **VM Monitor** (Postgres+TimescaleDB na Hetzner, agente Rust 24/7, dashboard Recharts) + **Health checks externos** (UptimeRobot caseiro via GH Actions cron) + **Vercel stacks** (frontend Vercel + backend container agregados via label `monitor.stack`, drawer dedicado, loading overlay com spinner+mensagens cíclicas+reticências animadas, engrenagem de preferências) + **Monitor de custos multi-serviço** (Sprint B3 — Vercel/GH Actions/Hetzner com chip danger 90%). Próximos prováveis: **modo análise** (gráficos expandidos com brush + sync entre charts + logs do período), **alertas + Telegram bot**, **web app PWA** pra celular, **monitor de custos multi-serviço** (Vercel/Supabase/GH Actions).

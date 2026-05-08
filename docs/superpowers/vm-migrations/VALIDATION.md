@@ -226,3 +226,70 @@ Plan: `docs/superpowers/plans/2026-05-08-snyk-like.md`
 - **Histórico/timeline de CVEs** no UI (DB já persiste 90d)
 - **Scan dependency check** no `scan-trivy.sh` — falhar mais cedo se `jq` ausente
 - **Sumário de "novos CVEs hoje"** no dashboard (delta entre scans)
+
+## Sprint B3 — Monitor de custos multi-serviço (2026-05-08)
+
+### Migration
+
+```bash
+scp docs/superpowers/vm-migrations/009_external_metrics.sql falcao@162.55.217.189:/tmp/
+ssh falcao@162.55.217.189 'docker exec -i falcao-monitor-db psql -U postgres -d monitor < /tmp/009_external_metrics.sql'
+```
+
+Verificar:
+
+```bash
+ssh falcao@162.55.217.189 \
+  'docker exec falcao-monitor-db psql -U postgres -d monitor -c "\d+ external_metrics"'
+```
+
+Esperado: hypertable com índices `idx_external_metrics_lookup`, compression policy 7d, retention 90d, grants reader/writer.
+
+### Tokens
+
+Já existem em `/home/falcao/.config/falcao-monitor/.env` na VM (Sprints 2 + B1). Variáveis:
+- `VERCEL_TOKEN` (read-only Hobby)
+- `GH_PAT_SECURITY` (PAT clássico com scope `read:user` + `repo` pra Sprint B1; cobre billing endpoint)
+
+Verificar `cat ~/.config/falcao-monitor/.env | grep -E '^(VERCEL_TOKEN|GH_PAT)' | wc -l` → 2.
+
+### Deploy do agente v0.3.0
+
+```bash
+./scripts/deploy-monitor-agent.sh
+```
+
+Verificar versão:
+
+```bash
+ssh falcao@162.55.217.189 \
+  'systemctl --user status falcao-monitor-agent.service --no-pager | head -10'
+```
+
+E logs do primeiro tick (esperar 1h ou ler logs após restart):
+
+```bash
+ssh falcao@162.55.217.189 \
+  'journalctl --user -u falcao-monitor-agent.service --since "5 minutes ago" | grep -E "(vercel_usage|gh_actions|hetzner: insert)"'
+```
+
+Esperado: linhas `INFO ... vercel_usage: persisted` e `INFO ... gh_actions: persisted` após 1h.
+
+### Smoke test no DB
+
+```bash
+ssh falcao@162.55.217.189 \
+  'docker exec falcao-monitor-db psql -U postgres -d monitor \
+   -c "SELECT service, metric, value, quota, ts FROM external_metrics ORDER BY ts DESC LIMIT 20;"'
+```
+
+Esperado:
+- Linhas pra `service='hetzner', metric='cost_accumulated_usd'` aparecem ~15s após restart (loop principal).
+- Linhas pra `service='vercel'` (4 métricas) e `service='gh_actions'` (1 métrica) aparecem após o primeiro tick de 1h.
+
+### Smoke test no launcher
+
+1. Build + reinstalar: `pnpm tauri build --bundles deb,rpm && rm ~/.local/bin/falcao-launcher && cp src-tauri/target/release/falcao-launcher ~/.local/bin/falcao-launcher`.
+2. Abrir launcher → aba **Custos**.
+3. Esperado: 3 cards (Vercel · GH Actions · Hetzner) com pelo menos uma barra cada (Hetzner já populado, Vercel/GH em até 1h).
+4. Forçar danger pra teste manual: `UPDATE external_metrics SET quota=0.01 WHERE service='hetzner' LIMIT 1;` → reabrir launcher → chip vermelho aparece na topbar próximo a "Custos". Reverter depois.
