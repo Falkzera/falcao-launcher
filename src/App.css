@@ -31,7 +31,8 @@
   /* Feedback */
   --color-success: #22c55e;
   --color-success-soft: rgba(34, 197, 94, 0.13);
-  --color-warning: #f59e0b;
+  --color-warning: #eab308;  /* yellow-500 — distinto do accent-primary (amber-500) */
+  --color-warning-soft: rgba(234, 179, 8, 0.13);
   --color-danger: #ef4444;
   --color-danger-soft: rgba(239, 68, 68, 0.13);
   --color-info: #3b82f6;
