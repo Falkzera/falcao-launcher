@@ -31,6 +31,14 @@ export function AnalysisPage({
   const { data: containers } = usePolling(monitorApi.listContainers, 30_000, enabled);
   const containerList: ContainerInfo[] = containers ?? [];
 
+  // Capacidades da VM — usadas pra fixar yMax dos charts de uso vs total.
+  const { data: vmStatus } = usePolling(monitorApi.vmStatus, 30_000, enabled);
+  const memTotalBytes = vmStatus?.last_mem_total_bytes ?? null;
+  const diskTotalBytes =
+    vmStatus?.last_disk_used_bytes != null && vmStatus?.last_disk_avail_bytes != null
+      ? vmStatus.last_disk_used_bytes + vmStatus.last_disk_avail_bytes
+      : null;
+
   // ─── State global ──────────────────────────────────────────────────────
   const [preset, setPreset] = useState<WindowKey>("1h");
   const [brushRange, setBrushRange] = useState<{ start: Date; end: Date } | null>(null);
@@ -222,6 +230,16 @@ export function AnalysisPage({
         onBrushChange={setBrushRange}
         onHover={setHoverTs}
         onSeriesLoaded={handleSeriesLoaded}
+        getYMaxForSlot={(slot) => {
+          // Pra métricas de "uso vs capacidade", fixa teto no total da VM.
+          if (slot.metric.kind === "vm") {
+            if (slot.metric.metric === "mem_used_bytes")
+              return memTotalBytes ?? undefined;
+            if (slot.metric.metric === "disk_used_bytes")
+              return diskTotalBytes ?? undefined;
+          }
+          return undefined;
+        }}
       />
       <button
         onClick={handleAddChart}

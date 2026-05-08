@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { fmtBytes, fmtBytesPerSec } from "../lib/format";
 import { toRate } from "../lib/metrics";
-import { useTunnel } from "../lib/monitor";
+import { monitorApi, usePolling, useTunnel } from "../lib/monitor";
 import type { MetricRef } from "../types/analysis";
 import type { StackSummary, WindowKey } from "../types/monitor";
 import { AnalysisPage } from "./AnalysisPage";
@@ -31,6 +31,15 @@ const WINDOW_LABELS: Record<WindowKey, string> = {
 
 export function VmTab() {
   const { ready, error } = useTunnel();
+  // Capacidades da VM (usadas pra fixar yMax dos charts de RAM/Disco —
+  // sem isso, eixo Y auto-escala pro max da janela e dá impressão errada
+  // de "estourando o topo" quando uso real é baixo).
+  const { data: vmStatus } = usePolling(monitorApi.vmStatus, 30_000, ready);
+  const memTotalBytes = vmStatus?.last_mem_total_bytes ?? null;
+  const diskTotalBytes =
+    vmStatus?.last_disk_used_bytes != null && vmStatus?.last_disk_avail_bytes != null
+      ? vmStatus.last_disk_used_bytes + vmStatus.last_disk_avail_bytes
+      : null;
   const [vmView, setVmView] = useState<VmView>({ kind: "dashboard" });
   const [selectedContainer, setSelectedContainer] = useState<string | null>(
     null,
@@ -122,6 +131,7 @@ export function VmTab() {
               bucket={params.bucket}
               enabled={ready}
               format={fmtBytes}
+              yMax={memTotalBytes ?? undefined}
               onClick={() => enterAnalysis({ kind: "vm", metric: "mem_used_bytes" })}
             />
             <VmMetricChart
@@ -142,6 +152,7 @@ export function VmTab() {
               bucket={params.bucket}
               enabled={ready}
               format={fmtBytes}
+              yMax={diskTotalBytes ?? undefined}
               onClick={() => enterAnalysis({ kind: "vm", metric: "disk_used_bytes" })}
             />
             <VmMetricChart

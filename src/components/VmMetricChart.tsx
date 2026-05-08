@@ -34,6 +34,13 @@ interface Props {
    * Click chama o callback — usado pra abrir o modo análise (Sprint 3).
    */
   onClick?: () => void;
+  /**
+   * Quando presente, fixa o teto do eixo Y nesse valor. Útil pra métricas
+   * de "uso vs capacidade" (ex: mem_used_bytes / disk_used_bytes) — sem
+   * isso, Recharts auto-escala pro maior valor da janela e o gráfico
+   * parece "estourando o topo" mesmo quando uso real é baixo.
+   */
+  yMax?: number;
 }
 
 function formatTimeLabel(ts: number): string {
@@ -56,6 +63,7 @@ export function VmMetricChart({
   bucket = null,
   transform,
   onClick,
+  yMax,
 }: Props) {
   // sinceIso recalculado dentro do fetcher pra cada tick olhar a janela atual.
   const fetcher = () => {
@@ -144,6 +152,7 @@ export function VmMetricChart({
                 stroke="var(--color-border-default)"
                 tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
                 width={56}
+                domain={yMax != null ? [0, yMax] : undefined}
               />
               <Tooltip
                 contentStyle={{

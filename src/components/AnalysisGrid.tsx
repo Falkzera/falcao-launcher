@@ -22,6 +22,9 @@ interface Props {
   onBrushChange: (range: { start: Date; end: Date } | null) => void;
   onHover: (ts: number | null) => void;
   onSeriesLoaded: (slotId: string, series: MetricPoint[]) => void;
+  /** Função opcional que retorna `yMax` por slot (pra fixar teto do eixo Y).
+   *  AnalysisPage passa isso baseado em vmStatus pra mem_used_bytes/disk_used_bytes. */
+  getYMaxForSlot?: (slot: ChartSlot) => number | undefined;
 }
 
 const COLS = { lg: 12, md: 6, sm: 1 };
@@ -42,6 +45,7 @@ export function AnalysisGrid({
   onBrushChange,
   onHover,
   onSeriesLoaded,
+  getYMaxForSlot,
 }: Props) {
   // Layouts por breakpoint:
   //   lg: usa coords salvos
@@ -125,6 +129,7 @@ export function AnalysisGrid({
             onBrushChange={onBrushChange}
             onHover={onHover}
             onSeriesLoaded={onSeriesLoaded}
+            yMax={getYMaxForSlot?.(slot)}
           />
         </div>
       ))}

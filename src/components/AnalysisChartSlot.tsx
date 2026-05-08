@@ -40,6 +40,12 @@ interface Props {
   onHover: (ts: number | null) => void;
   /** Notifica o pai dos pontos atualmente carregados (pro useAnalysisContext). */
   onSeriesLoaded: (slotId: string, series: MetricPoint[]) => void;
+  /**
+   * Quando presente, fixa teto do eixo Y. Útil pra métricas de "uso vs
+   * capacidade" (mem_used_bytes / disk_used_bytes) — pai computa via
+   * vmStatus e passa o total real.
+   */
+  yMax?: number;
 }
 
 export function AnalysisChartSlot({
@@ -55,6 +61,7 @@ export function AnalysisChartSlot({
   onBrushChange,
   onHover,
   onSeriesLoaded,
+  yMax,
 }: Props) {
   const [series, setSeries] = useState<MetricPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +203,7 @@ export function AnalysisChartSlot({
                   formatByMetricName(slot.metric.metric, v)
                 }
                 width={64}
+                domain={yMax != null ? [0, yMax] : undefined}
               />
               <Tooltip
                 labelFormatter={(ts) =>
