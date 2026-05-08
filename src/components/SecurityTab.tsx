@@ -123,15 +123,6 @@ export function SecurityTab() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="page-title text-3xl text-[var(--color-text-primary)]">
-          Segurança
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Vulnerabilidades nos seus repos GitHub e imagens Docker da VM.
-        </p>
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3">
         <div className="flex flex-wrap gap-3 text-sm">
           {summary ? (
