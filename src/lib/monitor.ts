@@ -21,6 +21,10 @@ import type {
   VulnSummary,
   VulnerabilityRow,
 } from "../types/security";
+import type {
+  CostHistoryPoint,
+  CostUsage,
+} from "../types/costs";
 
 export const monitorApi = {
   openTunnel: () => invoke<number>("monitor_open_tunnel"),
@@ -81,6 +85,20 @@ export const monitorApi = {
     invoke<void>("undismiss_cve", { cveKey }),
   listDismissedCves: () =>
     invoke<Record<string, DismissedVuln>>("list_dismissed_cves"),
+  // Sprint B3 — Custos multi-serviço
+  costSummary: () => invoke<CostUsage[]>("monitor_cost_summary"),
+  costHistory: (
+    service: string,
+    metric: string,
+    sinceIso: string,
+    untilIso: string,
+  ) =>
+    invoke<CostHistoryPoint[]>("monitor_cost_history", {
+      service,
+      metric,
+      sinceIso,
+      untilIso,
+    }),
 };
 
 /**
