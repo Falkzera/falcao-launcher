@@ -5,6 +5,10 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* react-grid-layout: drag-drop grid usado no modo análise (Sprint 3). */
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
+
 @theme {
   /* Surfaces */
   --color-bg-primary: #0f1117;

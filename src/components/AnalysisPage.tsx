@@ -8,7 +8,7 @@ import {
   type MetricRef,
 } from "../types/analysis";
 import type { ContainerInfo, MetricPoint, WindowKey } from "../types/monitor";
-import { AnalysisChartSlot } from "./AnalysisChartSlot";
+import { AnalysisGrid } from "./AnalysisGrid";
 import { AnalysisLayoutPicker } from "./AnalysisLayoutPicker";
 import { AnalysisLogsPanel } from "./AnalysisLogsPanel";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
@@ -191,33 +191,28 @@ export function AnalysisPage({
         )}
       </div>
 
-      {/* Charts (placeholder: empilhados — Phase D substitui por AnalysisGrid) */}
-      <div className="flex flex-col gap-3">
-        {charts.map((slot) => (
-          <div key={slot.id} style={{ height: 320 }}>
-            <AnalysisChartSlot
-              slot={slot}
-              containers={containerList}
-              presetRange={presetRange}
-              bucket={params.bucket}
-              brushRange={brushRange}
-              hoverTs={hoverTs}
-              enabled={enabled}
-              onMetricChange={handleMetricChange}
-              onRemove={handleRemoveChart}
-              onBrushChange={setBrushRange}
-              onHover={setHoverTs}
-              onSeriesLoaded={handleSeriesLoaded}
-            />
-          </div>
-        ))}
-        <button
-          onClick={handleAddChart}
-          className="self-start rounded-md border border-dashed border-[var(--color-border-default)] px-4 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
-        >
-          + Adicionar chart
-        </button>
-      </div>
+      {/* Charts em grid drag-drop (Phase D — AnalysisGrid responsivo) */}
+      <AnalysisGrid
+        charts={charts}
+        containers={containerList}
+        presetRange={presetRange}
+        bucket={params.bucket}
+        brushRange={brushRange}
+        hoverTs={hoverTs}
+        enabled={enabled}
+        onLayoutChange={setCharts}
+        onMetricChange={handleMetricChange}
+        onRemove={handleRemoveChart}
+        onBrushChange={setBrushRange}
+        onHover={setHoverTs}
+        onSeriesLoaded={handleSeriesLoaded}
+      />
+      <button
+        onClick={handleAddChart}
+        className="self-start rounded-md border border-dashed border-[var(--color-border-default)] px-4 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
+      >
+        + Adicionar chart
+      </button>
 
       {/* Logs */}
       <AnalysisLogsPanel
