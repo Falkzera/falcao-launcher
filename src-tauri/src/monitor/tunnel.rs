@@ -63,6 +63,8 @@ impl TunnelManager {
         Ok(())
     }
 
+    // API pública reservada (ex: health check programático do tunnel).
+    #[allow(dead_code)]
     pub fn is_open(&self) -> bool {
         self.child.lock().unwrap().is_some()
     }

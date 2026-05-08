@@ -67,6 +67,9 @@ pub fn is_active(last_activity: i64, now_ms: i64) -> bool {
     now_ms - last_activity <= ACTIVE_WINDOW_MS
 }
 
+// Pricing API reservada pra cálculo Rust-side de custo (atualmente só usado em
+// testes e no front via src/lib/claudeCost.ts). Mantém aqui pra paridade.
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub struct ModelPricing {
     pub input_per_1m: f64,
@@ -75,6 +78,7 @@ pub struct ModelPricing {
     pub output_per_1m: f64,
 }
 
+#[allow(dead_code)]
 pub const PRICING_AS_OF_2026_05: &[(&str, ModelPricing)] = &[
     ("claude-opus-4-7", ModelPricing {
         input_per_1m: 15.00,
@@ -96,6 +100,7 @@ pub const PRICING_AS_OF_2026_05: &[(&str, ModelPricing)] = &[
     }),
 ];
 
+#[allow(dead_code)]
 const FALLBACK_PRICING: ModelPricing = ModelPricing {
     input_per_1m: 3.00,
     cache_create_per_1m: 3.75,
@@ -104,6 +109,7 @@ const FALLBACK_PRICING: ModelPricing = ModelPricing {
 };
 
 /// Resolve pricing por prefixo de model id. Ex: "claude-opus-4-7-1m" casa "claude-opus-4-7".
+#[allow(dead_code)]
 pub fn pricing_for(model: &str) -> &'static ModelPricing {
     for (key, pricing) in PRICING_AS_OF_2026_05 {
         if model.starts_with(key) {
@@ -113,6 +119,7 @@ pub fn pricing_for(model: &str) -> &'static ModelPricing {
     &FALLBACK_PRICING
 }
 
+#[allow(dead_code)]
 pub fn cost_usd(usage: &AggregatedUsage, p: &ModelPricing) -> f64 {
     (usage.input_tokens as f64 * p.input_per_1m
         + usage.cache_creation_input_tokens as f64 * p.cache_create_per_1m
