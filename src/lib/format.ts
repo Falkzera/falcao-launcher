@@ -11,14 +11,10 @@ export function fmtBytes(bytes: number): string {
 /**
  * Threshold de cor pra progress bars seguindo decisão do CTO:
  * <70% success, 70-90% warning, >=90% danger.
- *
- * --color-warning hoje colide visualmente com --color-accent-primary
- * (ambos #f59e0b), então usamos #eab308 inline pra warning ter um amarelo
- * distinto do amber do brand.
  */
 export function pickProgressColor(pct: number): string {
   if (pct >= 90) return "var(--color-danger)";
-  if (pct >= 70) return "#eab308";
+  if (pct >= 70) return "var(--color-warning)";
   return "var(--color-success)";
 }
 
@@ -45,6 +41,6 @@ export function formatRelative(ts: Date): string {
  */
 export function pickUptimeColor(pct: number): string {
   if (pct >= 99.9) return "var(--color-success)";
-  if (pct >= 99) return "#eab308"; // yellow-500 (consistente com pickProgressColor)
+  if (pct >= 99) return "var(--color-warning)";
   return "var(--color-danger)";
 }
