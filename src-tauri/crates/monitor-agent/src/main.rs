@@ -72,6 +72,71 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Vercel /v1/usage — tick 1h, alimenta external_metrics (aba Custos).
+    if let Ok(token) = std::env::var("VERCEL_TOKEN") {
+        let pool_clone = pool.clone();
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .context("build reqwest client (vercel_usage)")?;
+        tokio::spawn(async move {
+            let mut tick = interval(Duration::from_secs(3600));
+            tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            loop {
+                tick.tick().await;
+                let ts = Utc::now();
+                match collectors::vercel_usage::collect(ts, &http, &token).await {
+                    Ok(rows) => {
+                        if rows.is_empty() {
+                            tracing::debug!("vercel_usage: nenhuma métrica retornada");
+                            continue;
+                        }
+                        let count = rows.len();
+                        match db::insert_external_metrics(&pool_clone, &rows).await {
+                            Ok(()) => tracing::info!(rows = count, "vercel_usage: persisted"),
+                            Err(e) => tracing::warn!("vercel_usage: insert failed: {e:#}"),
+                        }
+                    }
+                    Err(e) => tracing::warn!("vercel_usage: collect failed: {e:#}"),
+                }
+            }
+        });
+    }
+
+    // GitHub Actions billing — tick 1h, alimenta external_metrics.
+    if let Ok(token) = std::env::var("GH_PAT_SECURITY") {
+        let user = std::env::var("GH_BILLING_USER").unwrap_or_else(|_| "Falkzera".to_string());
+        let pool_clone = pool.clone();
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .context("build reqwest client (gh_actions)")?;
+        tokio::spawn(async move {
+            let mut tick = interval(Duration::from_secs(3600));
+            tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            loop {
+                tick.tick().await;
+                let ts = Utc::now();
+                match collectors::gh_actions::collect(ts, &http, &token, &user).await {
+                    Ok(rows) => {
+                        if rows.is_empty() {
+                            tracing::debug!("gh_actions: nenhuma métrica retornada");
+                            continue;
+                        }
+                        let count = rows.len();
+                        match db::insert_external_metrics(&pool_clone, &rows).await {
+                            Ok(()) => tracing::info!(rows = count, "gh_actions: persisted"),
+                            Err(e) => tracing::warn!("gh_actions: insert failed: {e:#}"),
+                        }
+                    }
+                    Err(e) => tracing::warn!("gh_actions: collect failed: {e:#}"),
+                }
+            }
+        });
+    } else {
+        tracing::warn!("gh_actions: GH_PAT_SECURITY ausente — coletor desabilitado");
+    }
+
     let mut buf = Buffer::default();
     let mut vm_state = VmCollectorState::default();
 
@@ -102,7 +167,14 @@ async fn main() -> Result<()> {
             Err(e) => tracing::warn!("container collector failed: {e:#}"),
         }
         match hz_res {
-            Ok(mut rows) => batch.append(&mut rows),
+            Ok((mut rows, ext_rows)) => {
+                batch.append(&mut rows);
+                if !ext_rows.is_empty() {
+                    if let Err(e) = db::insert_external_metrics(&pool, &ext_rows).await {
+                        tracing::warn!("hetzner: insert external_metrics failed: {e:#}");
+                    }
+                }
+            }
             Err(e) => tracing::warn!("hetzner collector failed: {e:#}"),
         }
 

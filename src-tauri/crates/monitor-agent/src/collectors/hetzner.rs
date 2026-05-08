@@ -13,7 +13,7 @@ use tracing::warn;
 /// Atualizar se plano mudar.
 const HOURLY_RATE_USD: f64 = 0.00766;
 
-pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
+pub async fn collect(ts: DateTime<Utc>) -> Result<(Vec<MetricRow>, Vec<monitor_shared::ExternalMetric>)> {
     let output = Command::new("hcloud")
         .args(["server", "describe", HOST_NAME, "-o", "json"])
         .output()
@@ -28,8 +28,7 @@ pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
     }
 
     let value: Value = serde_json::from_slice(&output.stdout).context("parse hcloud json")?;
-
-    Ok(parse_metrics(ts, &value))
+    Ok((parse_metrics(ts, &value), external_metrics(ts, &value)))
 }
 
 /// Espelha o `cost_accumulated_usd` em `ExternalMetric` pra alimentar a
