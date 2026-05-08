@@ -13,7 +13,7 @@ use tracing::warn;
 /// Atualizar se plano mudar.
 const HOURLY_RATE_USD: f64 = 0.00766;
 
-pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
+pub async fn collect(ts: DateTime<Utc>) -> Result<(Vec<MetricRow>, Vec<monitor_shared::ExternalMetric>)> {
     let output = Command::new("hcloud")
         .args(["server", "describe", HOST_NAME, "-o", "json"])
         .output()
@@ -28,8 +28,34 @@ pub async fn collect(ts: DateTime<Utc>) -> Result<Vec<MetricRow>> {
     }
 
     let value: Value = serde_json::from_slice(&output.stdout).context("parse hcloud json")?;
+    Ok((parse_metrics(ts, &value), external_metrics(ts, &value)))
+}
 
-    Ok(parse_metrics(ts, &value))
+/// Espelha o `cost_accumulated_usd` em `ExternalMetric` pra alimentar a
+/// hypertable `external_metrics` que a aba "Custos" do launcher consulta.
+/// Sprint B3. Quota = None (Hetzner não tem free tier).
+pub fn external_metrics(ts: DateTime<Utc>, value: &serde_json::Value) -> Vec<monitor_shared::ExternalMetric> {
+    let created_at = match parse_created_at(value) {
+        Some(c) => c,
+        None => return Vec::new(),
+    };
+    let raw_hours = (ts - created_at).num_seconds() as f64 / 3600.0;
+    let hours = if raw_hours.is_finite() && raw_hours > 0.0 {
+        raw_hours
+    } else {
+        0.0
+    };
+    let cost = hours * HOURLY_RATE_USD;
+
+    vec![monitor_shared::ExternalMetric {
+        ts,
+        service: "hetzner".to_string(),
+        metric: "cost_accumulated_usd".to_string(),
+        value: cost,
+        quota: None,
+        unit: "usd".to_string(),
+        period_start: None,
+    }]
 }
 
 /// Extrai métricas a partir do JSON do `hcloud server describe`.
@@ -176,6 +202,30 @@ mod tests {
         assert!(rows.iter().any(|r| r.metric == "status_running"));
         assert!(rows.iter().all(|r| r.metric != "cost_accumulated_usd"));
         assert!(rows.iter().all(|r| r.metric != "vm_age_hours"));
+    }
+
+    #[test]
+    fn external_metrics_emits_cost_row() {
+        let created = DateTime::parse_from_rfc3339("2026-05-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let ts = created + chrono::Duration::hours(100);
+        let v = json!({ "created": "2026-05-01T00:00:00Z", "status": "running" });
+
+        let rows = external_metrics(ts, &v);
+        assert_eq!(rows.len(), 1);
+        let m = &rows[0];
+        assert_eq!(m.service, "hetzner");
+        assert_eq!(m.metric, "cost_accumulated_usd");
+        assert_eq!(m.unit, "usd");
+        assert_eq!(m.quota, None);
+        assert!((m.value - 0.766).abs() < 1e-3);
+    }
+
+    #[test]
+    fn external_metrics_skips_when_no_created_at() {
+        let v = json!({ "status": "running" });
+        assert!(external_metrics(Utc::now(), &v).is_empty());
     }
 
     #[test]

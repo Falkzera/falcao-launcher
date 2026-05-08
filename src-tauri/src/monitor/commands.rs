@@ -1,5 +1,6 @@
 //! Tauri commands expostos pro frontend.
 
+use crate::monitor::costs::{self, CostHistoryPoint, CostUsage};
 use crate::monitor::queries::{ContainerInfo, HealthCheckSummary, MetricPoint, VmStatus};
 use crate::monitor::security::{self, VulnSummary, VulnerabilityRow};
 use crate::monitor::stacks::{StackDetail, StackSummary};
@@ -397,6 +398,48 @@ pub async fn monitor_vuln_count_by_repo(
         .clone()
         .ok_or_else(|| "tunnel closed".to_string())?;
     security::vuln_count_by_repo(&pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Sprint B3 — Monitor de custos multi-serviço
+// ============================================================
+
+#[tauri::command]
+pub async fn monitor_cost_summary(
+    state: State<'_, MonitorState>,
+) -> Result<Vec<CostUsage>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    costs::cost_summary(&pool).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn monitor_cost_history(
+    state: State<'_, MonitorState>,
+    service: String,
+    metric: String,
+    since_iso: String,
+    until_iso: String,
+) -> Result<Vec<CostHistoryPoint>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    let since: DateTime<Utc> = since_iso
+        .parse()
+        .map_err(|e: chrono::ParseError| format!("invalid since_iso: {e}"))?;
+    let until: DateTime<Utc> = until_iso
+        .parse()
+        .map_err(|e: chrono::ParseError| format!("invalid until_iso: {e}"))?;
+    costs::cost_history(&pool, &service, &metric, since, until)
         .await
         .map_err(|e| e.to_string())
 }
