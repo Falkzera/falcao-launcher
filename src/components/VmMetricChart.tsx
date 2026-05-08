@@ -29,6 +29,11 @@ interface Props {
    * Útil pra derivar rate de counters cumulativos (ex: net_tx_bytes → MB/s).
    */
   transform?: (pts: MetricPoint[]) => MetricPoint[];
+  /**
+   * Quando presente, torna o card clicável (cursor pointer + hover + a11y).
+   * Click chama o callback — usado pra abrir o modo análise (Sprint 3).
+   */
+  onClick?: () => void;
 }
 
 function formatTimeLabel(ts: number): string {
@@ -50,6 +55,7 @@ export function VmMetricChart({
   format,
   bucket = null,
   transform,
+  onClick,
 }: Props) {
   // sinceIso recalculado dentro do fetcher pra cada tick olhar a janela atual.
   const fetcher = () => {
@@ -80,7 +86,28 @@ export function VmMetricChart({
   const fmt = format ?? ((v: number) => `${v.toFixed(1)}${unit ?? ""}`);
 
   return (
-    <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-sm">
+    <div
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={
+        "rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 shadow-sm transition" +
+        (onClick
+          ? " cursor-pointer hover:border-[var(--color-accent-primary)]/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]/40"
+          : "")
+      }
+      aria-label={onClick ? `Investigar métrica ${title}` : undefined}
+    >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
           {title}
