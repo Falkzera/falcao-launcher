@@ -12,8 +12,9 @@ mod skills;
 use claude::ClaudeState;
 use monitor::commands::{
     monitor_close_tunnel, monitor_fetch_logs, monitor_fetch_logs_range, monitor_health_summary,
-    monitor_list_containers, monitor_list_stacks, monitor_metric_series, monitor_open_tunnel,
-    monitor_stack_detail, monitor_vm_status, MonitorState,
+    monitor_list_containers, monitor_list_stacks, monitor_list_vulnerabilities,
+    monitor_metric_series, monitor_open_tunnel, monitor_stack_detail, monitor_vm_status,
+    monitor_vuln_count_by_repo, monitor_vuln_summary, MonitorState,
 };
 use process::ProcessState;
 use std::sync::Arc;
@@ -43,12 +44,17 @@ pub fn run() {
             config::set_project_hidden,
             config::add_extra_path,
             config::remove_extra_path,
+            config::dismiss_cve,
+            config::undismiss_cve,
+            config::list_dismissed_cves,
             external::open_in_editor,
             external::open_in_terminal,
             external::open_in_files,
             external::kill_pid,
             external::spawn_claude,
             external::spawn_claude_investigation,
+            external::trigger_trivy_scan_on_vm,
+            external::trigger_dependabot_scan_via_gh,
             icon::resolve_icon,
             netstat::list_system_ports,
             claude::claude_snapshot,
@@ -66,6 +72,9 @@ pub fn run() {
             monitor_health_summary,
             monitor_list_stacks,
             monitor_stack_detail,
+            monitor_list_vulnerabilities,
+            monitor_vuln_summary,
+            monitor_vuln_count_by_repo,
         ])
         .setup(|app| {
             // System ports scanner — periódico

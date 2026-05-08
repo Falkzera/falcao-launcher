@@ -1,11 +1,13 @@
 //! Tauri commands expostos pro frontend.
 
 use crate::monitor::queries::{ContainerInfo, HealthCheckSummary, MetricPoint, VmStatus};
+use crate::monitor::security::{self, VulnSummary, VulnerabilityRow};
 use crate::monitor::stacks::{StackDetail, StackSummary};
 use crate::monitor::{queries, stacks, tunnel::TunnelManager};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use monitor_shared::HEALTH_ENDPOINTS;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -346,6 +348,55 @@ pub async fn monitor_stack_detail(
         .clone()
         .ok_or_else(|| "tunnel closed".to_string())?;
     stacks::stack_detail(&pool, &name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Sprint B1 — Snyk-like (vulnerabilidades)
+// ============================================================
+
+#[tauri::command]
+pub async fn monitor_list_vulnerabilities(
+    severities: Vec<String>,
+    kinds: Vec<String>,
+    state: State<'_, MonitorState>,
+) -> Result<Vec<VulnerabilityRow>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    security::list_vulnerabilities(&pool, &severities, &kinds)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn monitor_vuln_summary(
+    state: State<'_, MonitorState>,
+) -> Result<VulnSummary, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    security::vuln_summary(&pool).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn monitor_vuln_count_by_repo(
+    state: State<'_, MonitorState>,
+) -> Result<HashMap<String, i64>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    security::vuln_count_by_repo(&pool)
         .await
         .map_err(|e| e.to_string())
 }

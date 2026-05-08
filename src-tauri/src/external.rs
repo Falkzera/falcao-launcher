@@ -171,6 +171,76 @@ pub fn spawn_claude_investigation(
     spawn_detached(&mut cmd).map_err(|e| format!("falha ao spawnar Claude investigation: {}", e))
 }
 
+/// Dispara `scan-trivy.sh` na VM e emite eventos `vuln-scan-progress`
+/// pra UI mostrar streaming. Sprint B1 — Snyk-like.
+#[tauri::command]
+pub async fn trigger_trivy_scan_on_vm(
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let mut child = tokio::process::Command::new("ssh")
+        .args(["falcao@162.55.217.189", "/home/falcao/.local/bin/scan-trivy.sh"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("falha spawn ssh: {}", e))?;
+
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "stderr unavailable".to_string())?;
+
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let _ = app_clone.emit(
+                "vuln-scan-progress",
+                serde_json::json!({ "kind": "image", "line": line }),
+            );
+        }
+    });
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!("scan-trivy.sh exited with {}", status));
+    }
+    Ok(())
+}
+
+/// Dispara o workflow `security-scan.yml` no GitHub via PAT.
+#[tauri::command]
+pub async fn trigger_dependabot_scan_via_gh() -> Result<(), String> {
+    use std::process::Stdio;
+
+    let mut cmd = tokio::process::Command::new("gh");
+    cmd.args([
+        "workflow",
+        "run",
+        "security-scan.yml",
+        "-R",
+        "Falkzera/falcao-launcher",
+    ])
+    .stdout(Stdio::null())
+    .stderr(Stdio::piped());
+
+    if let Some(home) = dirs::home_dir() {
+        let local_bin = home.join(".local").join("bin");
+        let current_path = std::env::var("PATH")
+            .unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into());
+        cmd.env("PATH", format!("{}:{}", local_bin.display(), current_path));
+    }
+
+    let output = cmd.output().await.map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("gh workflow run falhou: {}", err));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
