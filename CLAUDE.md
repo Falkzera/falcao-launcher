@@ -66,6 +66,21 @@ Click num `VmMetricChart` ou no botão "🔍 Investigar período" dos drawers (C
 - `src/lib/useAnalysisLayouts.ts` — CRUD localStorage + export/import + schema migration tolerante.
 - `src/lib/useAnalysisContext.ts` — agregador serializável pra Sprint 4 (Claude).
 
+## Feature: Investigar com Claude (Sprint 4)
+
+Botão **"🤖 Investigar com Claude"** no header do `AnalysisPage` que abre Claude Code numa janela Ghostty nova com o `AnalysisContext` atual já formatado como prompt Markdown estruturado, partindo do diretório do projeto sendo investigado (auto-detect).
+
+- **Spec:** `docs/superpowers/specs/2026-05-07-claude-integration-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-07-claude-integration.md`
+- **Backend novo:** `spawn_claude_investigation` em `src-tauri/src/external.rs`. Reusa pattern de `spawn_claude` (Ghostty + PATH fix `~/.local/bin`). Mecanismo: `/tmp/falcao-investigation-<uuid>.md` chmod 600 + `bash -c "claude < <file>; rm -f <file>"` (stdin redirect dribla argv limit pra prompts grandes ~200KB).
+- **Auto-detect:** `container.resource` → `~/Projects/<name>`; `vm`/`hetzner` → `~/Projects/falcao-launcher` (fallback).
+- **Reuso:** `useAnalysisContext` (Sprint 3) consumido literalmente. Sessão Claude resultante é trackeada automaticamente pelo sistema de Claude awareness via `ClaudeChip` na aba Projetos.
+
+### Componentes/hooks novos (Sprint 4)
+- `src/components/ClaudeInvestigationModal.tsx` — modal com textarea pra pergunta + botão Spawnar.
+- `src/lib/serializeAnalysis.ts` — gerador Markdown estruturado + `estimatePromptSize`.
+- `src/lib/resolveTargetDir.ts` — auto-detect do diretório alvo.
+
 ## Documentação por pasta (agent.md)
 
 Toda pasta com código deste projeto tem um `.agent.md` que outra LLM lê antes de mexer ali. Ver regras completas em `~/.claude/skills/falcao-default/SKILL.md` (seção "agent.md").

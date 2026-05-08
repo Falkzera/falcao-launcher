@@ -147,3 +147,41 @@ Full suite: 33 passed / 0 failed / 1 ignored.
 - **Web App PWA**: versão browser do launcher pra acesso pelo celular.
 - **Alertas + Telegram bot**: push notifications pra alertas configuráveis.
 - **Drag-drop touch em mobile**: paridade com desktop (~5 dias adicionais — adiado).
+
+---
+
+## Sprint 4 — Integração Claude (2026-05-07)
+
+Spec: `docs/superpowers/specs/2026-05-07-claude-integration-design.md`
+Plan: `docs/superpowers/plans/2026-05-07-claude-integration.md`
+
+### Acceptance criteria (12 itens)
+
+- [x] Botão "🤖 Investigar com Claude" aparece no header do AnalysisPage
+- [x] Botão fica disabled enquanto charts carregam (analysisReady = false)
+- [x] Click abre ClaudeInvestigationModal com textarea autofocus
+- [x] Resumo do contexto correto (N charts · range X → Y · M linhas de logs)
+- [x] serializeContextToMarkdown produz markdown válido com 4 seções
+- [x] Tamanho do prompt sem limite efetivo (stdin redirect via /tmp file)
+- [x] Spawnar abre Ghostty + Claude no diretório correto (auto-detect)
+- [x] Fallback ao launcher dir funciona se auto-detect aponta pra dir inexistente
+- [x] Prompt temp em /tmp/falcao-investigation-<uuid>.md chmod 600, deletado após Claude consumir (rm no bash command)
+- [x] Sessão Claude aparece no ClaudeChip do projeto destino (sistema existente trackeia via JSONL watcher)
+- [x] Cargo test passa (4 testes Rust novos: validate dir + fallback + permissions; full suite 37 ok / 0 failed / 1 ignored)
+- [x] Documentação atualizada (3 agent.md + CLAUDE.md)
+
+### Observações operacionais
+
+- **Stdin redirect via `bash -c`:** Claude Code v1+ aceita prompt via stdin sem problema. Prompts >100KB testados em smoke.
+- **Cleanup automático:** `; rm -f` no bash command — se Claude crashar antes de consumir, arquivo fica até reboot do OS (aceito).
+- **PATH fix** reusado de `spawn_claude` (Sprint 3 fix) — `~/.local/bin` prepended explicitamente porque GNOME-launched apps herdam PATH minimalista.
+- **chmod 600** no arquivo temp — só user lê/escreve. Logs com tokens em stack traces ficam protegidos de outros users (não é vetor real, mas higiene).
+- **Subagent paralelo (A Rust ‖ B TS):** workflow validado — mesmo padrão da Sprint 3 entregou Phase A + B em ~2-3min de wall clock paralelo, ~5min ratio sequencial.
+- **Bug do worktree principal:** segundo subagent fez commit no path principal (não no worktree dele). Acabou OK porque tudo passou pra branch correta no merge.
+
+### Phase 5 backlog reconhecido
+
+- **Web App PWA** (alta prioridade — Falcão pediu desde o início) — versão browser do launcher pra acesso pelo celular.
+- **Alertas + Telegram bot** — push notifications pra alertas configuráveis.
+- **Toggle resumo estatístico** no modal (reduzir tokens em prompts grandes).
+- **Filtro de logs sensíveis** — redact tokens/senhas antes de mandar pro Claude.
