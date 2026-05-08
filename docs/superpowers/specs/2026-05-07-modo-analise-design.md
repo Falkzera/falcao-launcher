@@ -25,7 +25,7 @@ Sprint 3 entrega o "modo análise": uma vista dedicada onde o usuário pode:
 
 ## Objetivos
 
-1. Click num chart da aba VM abre a página de análise pré-populada com aquele chart
+1. Click num `VmMetricChart` (charts da seção "VM geral") abre a página de análise pré-populada com aquele chart. Containers individuais entram via botão "🔍 Investigar período" dentro do `VmContainerDrawer` ou do `StackDrawer` existentes (não substitui esses drawers — adiciona um caminho de aprofundamento).
 2. Page de análise tem grid drag-drop com layouts customizáveis (1 ou N charts)
 3. Range temporal sincronizado entre todos os charts (single source of truth)
 4. Brush selection refina o range visualmente sem refetch (subset dentro do preset)
@@ -49,7 +49,9 @@ Sprint 3 entrega o "modo análise": uma vista dedicada onde o usuário pode:
 
 ### D1 — Surface UI: página dedicada acessada por click em chart
 
-**Decisão:** click em qualquer `VmMetricChart` ou `VmContainerCard` da aba VM transiciona o conteúdo da aba pra `AnalysisPage`. Botão "← Voltar" volta pra dashboard. Estado de view local no `VmTab` (não nova aba no topbar).
+**Decisão:** click em qualquer `VmMetricChart` (seção "VM geral" da aba VM) transiciona o conteúdo da aba pra `AnalysisPage` com aquele chart pré-populado. Botão "← Voltar" volta pra dashboard. Estado de view local no `VmTab` (não nova aba no topbar).
+
+`VmContainerCard` **continua** abrindo `VmContainerDrawer` (UX existente preservada). O drawer ganha botão "🔍 Investigar período" no header que abre `AnalysisPage` com o chart `cpu_pct` do container já populado. Idem `StackDrawer` (botão no bloco "Backend container").
 
 **Por que não aba nova:** evita aba vazia esperando uso. Análise é uma **lente** sobre os dados da VM, não uma seção paralela. Mantém o storytelling INFRA → APLICAÇÕES intacto na aba VM regular.
 
@@ -339,7 +341,7 @@ Tests:
 
 A sprint só fecha se:
 
-1. ✅ Click em qualquer `VmMetricChart` ou `VmContainerCard` da aba VM transiciona pra `AnalysisPage` com aquele chart pré-populado
+1. ✅ Click em `VmMetricChart` da aba VM transiciona pra `AnalysisPage` com aquele chart pré-populado. `VmContainerDrawer` e `StackDrawer` ganham botão "🔍 Investigar período" que faz a mesma transição com chart do container.
 2. ✅ Botão "← Voltar" volta pra dashboard sem perder estado da análise (nova entrada começa do zero)
 3. ✅ Grid drag-drop funciona em desktop: arrastar e redimensionar charts atualiza posição persistida
 4. ✅ Mobile (<600px) renderiza charts empilhados sem horizontal scroll, sem drag-drop, com reorder por menu
@@ -365,7 +367,7 @@ A sprint só fecha se:
 
 ## Deps novas
 
-- `react-grid-layout@^1.5` (drag-drop grid responsivo) — ~~150KB minified, MIT, mantida ativamente
+- `react-grid-layout@^1.5` (drag-drop grid responsivo) — ~150KB minified, MIT, mantida ativamente
 - Sem outras deps (Recharts já no projeto, `uuid` já usado, framer-motion já no projeto)
 
 ## Próximos passos pós-aprovação
