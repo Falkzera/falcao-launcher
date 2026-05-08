@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { fmtBytesPerSec } from "../lib/format";
 import { toRate } from "../lib/metrics";
 import { monitorApi } from "../lib/monitor";
 import { slideInRight } from "../styles/animations";
@@ -131,7 +132,7 @@ export function VmContainerDrawer({
               enabled={enabled}
               pollMs={5_000}
               transform={toRate}
-              format={(v) => `${(v / 1e6).toFixed(2)} MB/s`}
+              format={fmtBytesPerSec}
             />
           </div>
         </section>

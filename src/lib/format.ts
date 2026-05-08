@@ -9,6 +9,41 @@ export function fmtBytes(bytes: number): string {
 }
 
 /**
+ * Bytes/segundo adaptativo. Escolhe unidade pela magnitude pra evitar
+ * "0.00 MB/s" empilhado quando taxa é baixa.
+ */
+export function fmtBytesPerSec(bps: number): string {
+  if (!Number.isFinite(bps) || bps < 0) return "—";
+  if (bps >= 1073741824) return `${(bps / 1073741824).toFixed(2)} GB/s`;
+  if (bps >= 1048576) return `${(bps / 1048576).toFixed(2)} MB/s`;
+  if (bps >= 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
+  if (bps >= 1) return `${bps.toFixed(0)} B/s`;
+  return `${(bps * 1024).toFixed(2)} KB/s ÷ 1024`; // valores < 1 B/s viram fração de KB/s pra leitura
+}
+
+/**
+ * Tick formatter inteligente baseado no nome da métrica.
+ * Usado pelo AnalysisChartSlot YAxis (que recebe métricas heterogêneas).
+ *
+ * Heurística por sufixo do nome:
+ *   *_bytes     → fmtBytes (RAM, disco, traffic)
+ *   *_pct       → "X.X %"
+ *   load_*      → "X.XX"
+ *   cost_*      → "$ X.XX"
+ *   *_ms        → "X ms"
+ *   default     → "X.XX"
+ */
+export function formatByMetricName(metricName: string, value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  if (metricName.endsWith("_bytes")) return fmtBytes(value);
+  if (metricName.endsWith("_pct")) return `${value.toFixed(1)}%`;
+  if (metricName.startsWith("load_")) return value.toFixed(2);
+  if (metricName.startsWith("cost_")) return `$${value.toFixed(2)}`;
+  if (metricName.endsWith("_ms")) return `${value.toFixed(0)} ms`;
+  return value.toFixed(2);
+}
+
+/**
  * Threshold de cor pra progress bars seguindo decisão do CTO:
  * <70% success, 70-90% warning, >=90% danger.
  */

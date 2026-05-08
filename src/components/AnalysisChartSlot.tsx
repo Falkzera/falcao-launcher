@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatByMetricName } from "../lib/format";
 import { monitorApi } from "../lib/monitor";
 import type { ChartSlot, MetricRef } from "../types/analysis";
 import type {
@@ -188,10 +189,20 @@ export function AnalysisChartSlot({
                 stroke="var(--color-text-muted)"
                 fontSize={10}
               />
-              <YAxis stroke="var(--color-text-muted)" fontSize={10} />
+              <YAxis
+                stroke="var(--color-text-muted)"
+                fontSize={10}
+                tickFormatter={(v: number) =>
+                  formatByMetricName(slot.metric.metric, v)
+                }
+                width={64}
+              />
               <Tooltip
                 labelFormatter={(ts) =>
                   new Date(Number(ts)).toLocaleString("pt-BR")
+                }
+                formatter={(value: unknown) =>
+                  formatByMetricName(slot.metric.metric, Number(value))
                 }
                 contentStyle={{
                   background: "var(--color-bg-secondary)",
