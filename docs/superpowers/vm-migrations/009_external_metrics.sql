@@ -26,4 +26,5 @@ SELECT add_compression_policy('external_metrics', INTERVAL '7 days', if_not_exis
 SELECT add_retention_policy('external_metrics', INTERVAL '90 days', if_not_exists => TRUE);
 
 GRANT SELECT ON external_metrics TO monitor_reader;
-GRANT INSERT, SELECT ON external_metrics TO monitor_writer;
+-- INSERT + UPDATE necessários porque o coletor usa ON CONFLICT DO UPDATE (UPSERT).
+GRANT INSERT, UPDATE, SELECT ON external_metrics TO monitor_writer;

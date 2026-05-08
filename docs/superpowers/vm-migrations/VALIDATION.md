@@ -233,14 +233,14 @@ Plan: `docs/superpowers/plans/2026-05-08-snyk-like.md`
 
 ```bash
 scp docs/superpowers/vm-migrations/009_external_metrics.sql falcao@162.55.217.189:/tmp/
-ssh falcao@162.55.217.189 'docker exec -i falcao-monitor-db psql -U postgres -d monitor < /tmp/009_external_metrics.sql'
+ssh falcao@162.55.217.189 'docker exec -i falcao-monitor-db psql -U postgres -d falcao_monitor < /tmp/009_external_metrics.sql'
 ```
 
 Verificar:
 
 ```bash
 ssh falcao@162.55.217.189 \
-  'docker exec falcao-monitor-db psql -U postgres -d monitor -c "\d+ external_metrics"'
+  'docker exec falcao-monitor-db psql -U postgres -d falcao_monitor -c "\d+ external_metrics"'
 ```
 
 Esperado: hypertable com índices `idx_external_metrics_lookup`, compression policy 7d, retention 90d, grants reader/writer.
@@ -279,7 +279,7 @@ Esperado: linhas `INFO ... vercel_usage: persisted` e `INFO ... gh_actions: pers
 
 ```bash
 ssh falcao@162.55.217.189 \
-  'docker exec falcao-monitor-db psql -U postgres -d monitor \
+  'docker exec falcao-monitor-db psql -U postgres -d falcao_monitor \
    -c "SELECT service, metric, value, quota, ts FROM external_metrics ORDER BY ts DESC LIMIT 20;"'
 ```
 
