@@ -5,6 +5,7 @@ import { resolveTargetDir } from "../lib/resolveTargetDir";
 import {
   estimatePromptSize,
   serializeContextToMarkdown,
+  type SerializationMode,
 } from "../lib/serializeAnalysis";
 import { modalVariants, overlayVariants } from "../styles/animations";
 import type { AnalysisContext, MetricRef } from "../types/analysis";
@@ -26,6 +27,7 @@ export function ClaudeInvestigationModal({
   onClose,
 }: Props) {
   const [question, setQuestion] = useState("");
+  const [mode, setMode] = useState<SerializationMode>("raw");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -34,6 +36,7 @@ export function ClaudeInvestigationModal({
   useEffect(() => {
     if (open) {
       setQuestion("");
+      setMode("raw");
       setError(null);
       setLoading(false);
       // Autofocus após animação
@@ -52,7 +55,7 @@ export function ClaudeInvestigationModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, loading, onClose]);
 
-  const estimate = estimatePromptSize(context);
+  const estimate = estimatePromptSize(context, mode);
   const canSpawn = question.trim().length > 0 && !loading;
 
   const handleSpawn = async () => {
@@ -60,7 +63,7 @@ export function ClaudeInvestigationModal({
     setLoading(true);
     setError(null);
     try {
-      const prompt = serializeContextToMarkdown(context, question);
+      const prompt = serializeContextToMarkdown(context, question, mode);
       const targetDir = resolveTargetDir(primaryMetric);
       await monitorApi.spawnClaudeInvestigation(prompt, targetDir);
       onClose();
@@ -133,6 +136,22 @@ export function ClaudeInvestigationModal({
                 disabled={loading}
                 className="mt-1 w-full rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-primary)] p-2 font-sans text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent-primary)]/60 focus:outline-none disabled:opacity-50"
               />
+            </label>
+
+            <label className="mt-2 flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                checked={mode === "summary"}
+                onChange={(e) => setMode(e.target.checked ? "summary" : "raw")}
+                disabled={loading}
+                className="h-3 w-3 accent-[var(--color-accent-primary)]"
+              />
+              <span>
+                Enviar resumo estatístico em vez de séries brutas
+                <span className="ml-1 text-[var(--color-text-muted)]">
+                  (reduz prompt ~70%, perde precisão de pontos)
+                </span>
+              </span>
             </label>
 
             {error && (
