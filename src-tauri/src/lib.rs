@@ -50,6 +50,8 @@ pub fn run() {
             external::kill_pid,
             external::spawn_claude,
             external::spawn_claude_investigation,
+            external::trigger_trivy_scan_on_vm,
+            external::trigger_dependabot_scan_via_gh,
             icon::resolve_icon,
             netstat::list_system_ports,
             claude::claude_snapshot,
