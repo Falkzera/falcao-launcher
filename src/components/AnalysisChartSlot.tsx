@@ -123,11 +123,21 @@ export function AnalysisChartSlot({
         className="analysis-slot-drag-handle mb-2 flex cursor-move items-center justify-between gap-2"
         title="Arrastar pra mover (segure aqui)"
       >
-        <MetricPicker
-          value={slot.metric}
-          onChange={(ref) => onMetricChange(slot.id, ref)}
-          containers={containers}
-        />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {/* Drag handle visual — Sprint 5 polish (decorativo; o handle real
+              continua sendo a div .analysis-slot-drag-handle inteira) */}
+          <span
+            className="select-none text-base leading-none text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)]"
+            aria-hidden="true"
+          >
+            ⋮⋮
+          </span>
+          <MetricPicker
+            value={slot.metric}
+            onChange={(ref) => onMetricChange(slot.id, ref)}
+            containers={containers}
+          />
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
