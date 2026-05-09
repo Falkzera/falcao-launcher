@@ -85,6 +85,8 @@ export const monitorApi = {
     invoke<void>("undismiss_cve", { cveKey }),
   listDismissedCves: () =>
     invoke<Record<string, DismissedVuln>>("list_dismissed_cves"),
+  // Sprint B1.5 — tokens trackeados (Vercel projects + container resources + stack labels)
+  listTrackedTokens: () => invoke<string[]>("monitor_list_tracked_tokens"),
   // Sprint B3 — Custos multi-serviço
   costSummary: () => invoke<CostUsage[]>("monitor_cost_summary"),
   costHistory: (

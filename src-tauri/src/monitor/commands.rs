@@ -402,6 +402,21 @@ pub async fn monitor_vuln_count_by_repo(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn monitor_list_tracked_tokens(
+    state: State<'_, MonitorState>,
+) -> Result<Vec<String>, String> {
+    let pool = state
+        .pool
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "tunnel closed".to_string())?;
+    security::list_tracked_tokens(&pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ============================================================
 // Sprint B3 — Monitor de custos multi-serviço
 // ============================================================
