@@ -72,8 +72,12 @@ pub const HOST_NAME: &str = "falcao-main";
 pub const POLL_INTERVAL_SECS: u64 = 15;
 
 /// Endpoints monitorados pelo health check externo (Sprint 2).
-pub const HEALTH_ENDPOINTS: [&str; 3] = [
+/// Slice em vez de array fixed-size pra adicionar endpoints sem mexer nos
+/// callers. Manter sincronizado com `scripts/probe-endpoints.sh`.
+pub const HEALTH_ENDPOINTS: &[&str] = &[
     "https://falcao-financas.duckdns.org/api/health",
     "https://falcao-financas.vercel.app",
+    "https://falcao-questoes.duckdns.org/health",
+    "https://falcao-questoes.vercel.app",
     "https://162.55.217.189",
 ];
