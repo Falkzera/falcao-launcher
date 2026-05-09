@@ -522,15 +522,16 @@ function SecuritySection({
   enabled: boolean;
 }) {
   const [spawning, setSpawning] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
-  const { data: vulns } = usePolling(
+  const { data: vulns, refetch: refetchVulns } = usePolling(
     () =>
       monitorApi.listVulnerabilities({
         severities: ["critical", "high", "medium", "low"],
         kinds: ["deps", "image", "advisory"],
         search: "",
       }),
-    60_000,
+    30_000,
     enabled,
   );
 
@@ -567,20 +568,46 @@ function SecuritySection({
     }
   };
 
+  const handleRescan = async () => {
+    setScanning(true);
+    try {
+      // Dispara ambos os scans (Trivy na VM + Dependabot via gh) e aguarda.
+      // Nem todos os bytes ficam prontos imediatamente (Dependabot é GH Actions
+      // assíncrono), mas o refetch já pega o que landed.
+      await Promise.allSettled([
+        monitorApi.triggerTrivyScan(),
+        monitorApi.triggerDependabotScan(),
+      ]);
+      await refetchVulns();
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <SectionTitle>Segurança</SectionTitle>
-        {stackVulns && stackVulns.length > 0 && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleInvestigate}
-            disabled={spawning}
-            title="Abrir Claude Code com contexto de todas as CVEs desta stack"
+            onClick={handleRescan}
+            disabled={scanning || !enabled}
+            title="Re-escanear Trivy (imagens) + Dependabot (deps). Refresh imediato após disparar."
             className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)] disabled:opacity-50"
           >
-            {spawning ? "Abrindo…" : "🤖 Investigar com Claude"}
+            {scanning ? "Scanning…" : "🔄 Re-escanear"}
           </button>
-        )}
+          {stackVulns && stackVulns.length > 0 && (
+            <button
+              onClick={handleInvestigate}
+              disabled={spawning}
+              title="Abrir Claude Code com contexto de todas as CVEs desta stack"
+              className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)] disabled:opacity-50"
+            >
+              {spawning ? "Abrindo…" : "🤖 Investigar com Claude"}
+            </button>
+          )}
+        </div>
       </div>
 
       {!stackVulns && (
