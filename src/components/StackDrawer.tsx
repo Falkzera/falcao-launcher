@@ -1,7 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { fmtBytes, formatRelative, pickUptimeColor } from "../lib/format";
 import { monitorApi, usePolling } from "../lib/monitor";
+import {
+  resolveSecurityTargetDir,
+  serializeSecurityGroup,
+} from "../lib/serializeSecurity";
 import { slideInRight } from "../styles/animations";
 import type {
   ContainerInfo,
@@ -9,6 +13,7 @@ import type {
   VercelDeploymentRow,
   WindowKey,
 } from "../types/monitor";
+import type { VulnerabilityRow as VulnRow } from "../types/security";
 import { DrawerLoadingOverlay } from "./Loading";
 import { TimeWindowSelector, windowToParams } from "./TimeWindowSelector";
 import { UsageBar } from "./UsageBar";
@@ -95,6 +100,12 @@ export function StackDrawer({
             onWindowChange={setDrawerWindow}
             windowParams={params}
             onInvestigateContainer={onInvestigateContainer}
+          />
+
+          <SecuritySection
+            stackName={stackName}
+            containers={detail?.containers ?? []}
+            enabled={enabled}
           />
 
           {detail?.endpoint_health && (
@@ -476,6 +487,191 @@ function EndpointSection({ health }: { health: HealthCheckSummary }) {
         </p>
       </div>
     </section>
+  );
+}
+
+// ─── Segurança (CVEs por stack) ─────────────────────────────────────────────
+
+const SEV_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  unknown: 4,
+};
+
+function vulnBelongsToStack(
+  vuln: VulnRow,
+  stackName: string,
+  containerNames: string[],
+): boolean {
+  if (vuln.kind === "advisory") return false; // cross-cutting, fica na aba Segurança
+  const src = vuln.source_id.toLowerCase();
+  const stack = stackName.toLowerCase();
+  if (src.includes(stack)) return true;
+  return containerNames.some((c) => src.includes(c.toLowerCase()));
+}
+
+function SecuritySection({
+  stackName,
+  containers,
+  enabled,
+}: {
+  stackName: string;
+  containers: ContainerInfo[];
+  enabled: boolean;
+}) {
+  const [spawning, setSpawning] = useState(false);
+
+  const { data: vulns } = usePolling(
+    () =>
+      monitorApi.listVulnerabilities({
+        severities: ["critical", "high", "medium", "low"],
+        kinds: ["deps", "image", "advisory"],
+        search: "",
+      }),
+    60_000,
+    enabled,
+  );
+
+  const containerNames = useMemo(
+    () => containers.map((c) => c.name),
+    [containers],
+  );
+
+  const stackVulns = useMemo(() => {
+    if (!vulns) return null;
+    return vulns
+      .filter((v) => vulnBelongsToStack(v, stackName, containerNames))
+      .sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
+  }, [vulns, stackName, containerNames]);
+
+  const counts = useMemo(() => {
+    const c = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+    if (!stackVulns) return c;
+    for (const v of stackVulns) c[v.severity] += 1;
+    return c;
+  }, [stackVulns]);
+
+  const handleInvestigate = async () => {
+    if (!stackVulns || stackVulns.length === 0) return;
+    setSpawning(true);
+    try {
+      const prompt = serializeSecurityGroup(stackName, stackVulns);
+      const targetDir = resolveSecurityTargetDir(stackName);
+      await monitorApi.spawnClaudeInvestigation(prompt, targetDir);
+    } catch (e) {
+      console.error("spawnClaudeInvestigation failed:", e);
+    } finally {
+      setSpawning(false);
+    }
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionTitle>Segurança</SectionTitle>
+        {stackVulns && stackVulns.length > 0 && (
+          <button
+            onClick={handleInvestigate}
+            disabled={spawning}
+            title="Abrir Claude Code com contexto de todas as CVEs desta stack"
+            className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)] disabled:opacity-50"
+          >
+            {spawning ? "Abrindo…" : "🤖 Investigar com Claude"}
+          </button>
+        )}
+      </div>
+
+      {!stackVulns && (
+        <p className="text-xs text-[var(--color-text-muted)]">carregando…</p>
+      )}
+
+      {stackVulns && stackVulns.length === 0 && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          🎉 Nenhuma CVE aberta nesta stack
+        </p>
+      )}
+
+      {stackVulns && stackVulns.length > 0 && (
+        <>
+          <div className="flex flex-wrap gap-3 font-mono text-xs">
+            <SevCount label="Critical" count={counts.critical} color="danger" />
+            <SevCount label="High" count={counts.high} color="warning" />
+            <SevCount label="Medium" count={counts.medium} color="accent-secondary" />
+            <SevCount label="Low" count={counts.low} color="text-muted" />
+          </div>
+          <ul className="space-y-1.5">
+            {stackVulns.slice(0, 12).map((v) => (
+              <VulnLine key={`${v.source_id}:${v.cve_id ?? v.ghsa_id ?? v.package_name}:${v.last_seen}`} vuln={v} />
+            ))}
+          </ul>
+          {stackVulns.length > 12 && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              … e mais {stackVulns.length - 12}. Use o botão Claude pra ver todas com plano de upgrade.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function SevCount({
+  label,
+  count,
+  color,
+}: {
+  label: string;
+  count: number;
+  color: "danger" | "warning" | "accent-secondary" | "text-muted";
+}) {
+  return (
+    <span>
+      <span className="text-[var(--color-text-muted)]">{label}:</span>{" "}
+      <span style={{ color: `var(--color-${color})` }}>{count}</span>
+    </span>
+  );
+}
+
+function VulnLine({ vuln }: { vuln: VulnRow }) {
+  const id = vuln.cve_id ?? vuln.ghsa_id ?? "—";
+  const sevColor: Record<string, string> = {
+    critical: "var(--color-danger)",
+    high: "var(--color-accent-primary)",
+    medium: "var(--color-accent-secondary)",
+    low: "var(--color-text-muted)",
+    unknown: "var(--color-text-muted)",
+  };
+  return (
+    <li className="flex items-baseline gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] px-2 py-1.5 text-xs">
+      <span
+        className="rounded-sm px-1 font-mono text-[9px] font-bold uppercase"
+        style={{ color: sevColor[vuln.severity], borderColor: sevColor[vuln.severity] }}
+      >
+        {vuln.severity}
+      </span>
+      <span className="font-mono text-[10px] text-[var(--color-text-secondary)]">{id}</span>
+      {vuln.package_name && (
+        <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+          {vuln.package_name}
+        </span>
+      )}
+      <span className="truncate text-[var(--color-text-primary)]" title={vuln.title ?? ""}>
+        {vuln.title ?? ""}
+      </span>
+      {vuln.url && (
+        <a
+          href={vuln.url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          ↗
+        </a>
+      )}
+    </li>
   );
 }
 
