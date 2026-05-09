@@ -62,18 +62,30 @@ pub async fn list_vulnerabilities(
         return Ok(Vec::new());
     }
 
+    // CVEs que sumiram em scans novos: o registro antigo continua state=open
+    // por até 7 dias. Filtro só CVEs do scan mais recente por (kind, source_id)
+    // — janela de 10 minutos cobre scans paralelos (trivy + dependabot) sem
+    // misturar com runs antigos.
     let rows = client
         .query(
             r#"
-            SELECT DISTINCT ON (kind, source_id, COALESCE(cve_id, ghsa_id, package_name))
-              kind, severity, cve_id, ghsa_id, source_id, package_name,
-              package_version, fix_version, title, url, state, ts
-            FROM vulnerabilities
-            WHERE state = 'open'
-              AND ts > now() - interval '7 days'
-              AND severity = ANY($1)
-              AND kind = ANY($2)
-            ORDER BY kind, source_id, COALESCE(cve_id, ghsa_id, package_name), ts DESC
+            WITH latest_scan AS (
+              SELECT kind, source_id, MAX(ts) AS scan_ts
+              FROM vulnerabilities
+              WHERE state = 'open' AND ts > now() - interval '7 days'
+              GROUP BY kind, source_id
+            )
+            SELECT DISTINCT ON (v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name))
+              v.kind, v.severity, v.cve_id, v.ghsa_id, v.source_id, v.package_name,
+              v.package_version, v.fix_version, v.title, v.url, v.state, v.ts
+            FROM vulnerabilities v
+            JOIN latest_scan l
+              ON v.kind = l.kind AND v.source_id = l.source_id
+            WHERE v.state = 'open'
+              AND v.ts >= l.scan_ts - interval '10 minutes'
+              AND v.severity = ANY($1)
+              AND v.kind = ANY($2)
+            ORDER BY v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name), v.ts DESC
             "#,
             &[&sev_filter, &kind_filter],
         )
@@ -102,15 +114,24 @@ pub async fn list_vulnerabilities(
 pub async fn vuln_summary(pool: &Pool) -> Result<VulnSummary> {
     let client = pool.get().await?;
 
+    // Mesma lógica do list_vulnerabilities: só conta CVEs do scan mais recente
+    // por source — evita inflar contadores com CVEs já corrigidas.
     let row = client
         .query_one(
             r#"
-            WITH latest AS (
-              SELECT DISTINCT ON (kind, source_id, COALESCE(cve_id, ghsa_id, package_name))
-                severity, ts
+            WITH latest_scan AS (
+              SELECT kind, source_id, MAX(ts) AS scan_ts
               FROM vulnerabilities
               WHERE state = 'open' AND ts > now() - interval '7 days'
-              ORDER BY kind, source_id, COALESCE(cve_id, ghsa_id, package_name), ts DESC
+              GROUP BY kind, source_id
+            ),
+            latest AS (
+              SELECT DISTINCT ON (v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name))
+                v.severity, v.ts
+              FROM vulnerabilities v
+              JOIN latest_scan l ON v.kind = l.kind AND v.source_id = l.source_id
+              WHERE v.state = 'open' AND v.ts >= l.scan_ts - interval '10 minutes'
+              ORDER BY v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name), v.ts DESC
             )
             SELECT
               COUNT(*) FILTER (WHERE severity = 'critical') AS critical,
@@ -176,15 +197,23 @@ pub async fn list_tracked_tokens(pool: &Pool) -> Result<Vec<String>> {
 pub async fn vuln_count_by_repo(pool: &Pool) -> Result<HashMap<String, i64>> {
     let client = pool.get().await?;
 
+    // Mesma lógica de "scan mais recente" das outras queries.
     let rows = client
         .query(
             r#"
-            WITH latest AS (
-              SELECT DISTINCT ON (kind, source_id, COALESCE(cve_id, ghsa_id, package_name))
-                kind, source_id, severity
+            WITH latest_scan AS (
+              SELECT kind, source_id, MAX(ts) AS scan_ts
               FROM vulnerabilities
               WHERE state = 'open' AND ts > now() - interval '7 days'
-              ORDER BY kind, source_id, COALESCE(cve_id, ghsa_id, package_name), ts DESC
+              GROUP BY kind, source_id
+            ),
+            latest AS (
+              SELECT DISTINCT ON (v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name))
+                v.kind, v.source_id, v.severity
+              FROM vulnerabilities v
+              JOIN latest_scan l ON v.kind = l.kind AND v.source_id = l.source_id
+              WHERE v.state = 'open' AND v.ts >= l.scan_ts - interval '10 minutes'
+              ORDER BY v.kind, v.source_id, COALESCE(v.cve_id, v.ghsa_id, v.package_name), v.ts DESC
             )
             SELECT source_id, COUNT(*)
             FROM latest
