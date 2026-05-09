@@ -83,7 +83,7 @@ export function StackDrawer({
         </button>
       </header>
 
-      <div className="relative flex-1">
+      <div className="relative min-h-0 flex-1">
         <div
           className="h-full space-y-7 overflow-y-auto p-5"
           style={{ overscrollBehavior: "contain" }}
