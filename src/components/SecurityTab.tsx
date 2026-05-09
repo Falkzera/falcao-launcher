@@ -37,11 +37,32 @@ const KIND_LABEL: Record<VulnKind, string> = {
   advisory: "advisory",
 };
 
+const SHOW_UNTRACKED_KEY = "falcao-launcher.security.showUntracked";
+
+/** Decide se uma CVE pertence a um projeto trackeado pela VM/produção.
+ *  - kind=image: sempre tracked (Trivy só escaneia imagens em uso).
+ *  - kind=advisory: nunca tracked por padrão (cross-cutting, ruído).
+ *  - kind=deps: tracked se algum token aparece (case-insensitive) no source_id.
+ */
+function isTracked(vuln: VulnRow, tokens: string[]): boolean {
+  if (vuln.kind === "image") return true;
+  if (vuln.kind === "advisory") return false;
+  const src = vuln.source_id.toLowerCase();
+  return tokens.some((t) => t.length > 0 && src.includes(t.toLowerCase()));
+}
+
 export function SecurityTab() {
   const { ready } = useTunnel();
   const [filters, setFilters] = useState<VulnFilters>(DEFAULT_FILTERS);
   const [scanning, setScanning] = useState(false);
   const [dismissed, setDismissed] = useState<Record<string, DismissedVuln>>({});
+  const [showUntracked, setShowUntracked] = useState(
+    () => localStorage.getItem(SHOW_UNTRACKED_KEY) === "true",
+  );
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_UNTRACKED_KEY, String(showUntracked));
+  }, [showUntracked]);
 
   const { data: vulns, error: vulnsError } = usePolling(
     () => monitorApi.listVulnerabilities(filters),
@@ -49,6 +70,11 @@ export function SecurityTab() {
     ready,
   );
   const { data: summary } = usePolling(monitorApi.vulnSummary, 60_000, ready);
+  const { data: trackedTokens } = usePolling(
+    monitorApi.listTrackedTokens,
+    5 * 60_000,
+    ready,
+  );
 
   const refreshDismissed = () => {
     monitorApi
@@ -62,13 +88,26 @@ export function SecurityTab() {
 
   const visibleVulns = useMemo(() => {
     if (!vulns) return null;
+    const tokens = trackedTokens ?? [];
     return vulns.filter((v) => {
       const key = vulnDismissKey(v);
       const d = dismissed[key];
-      if (!d) return true;
-      return shouldRevalidateDismiss(v, d);
+      if (d && !shouldRevalidateDismiss(v, d)) return false;
+      if (showUntracked) return true;
+      return isTracked(v, tokens);
     });
-  }, [vulns, dismissed]);
+  }, [vulns, dismissed, trackedTokens, showUntracked]);
+
+  const untrackedCount = useMemo(() => {
+    if (!vulns) return 0;
+    const tokens = trackedTokens ?? [];
+    return vulns.filter((v) => {
+      const key = vulnDismissKey(v);
+      const d = dismissed[key];
+      if (d && !shouldRevalidateDismiss(v, d)) return false;
+      return !isTracked(v, tokens);
+    }).length;
+  }, [vulns, dismissed, trackedTokens]);
 
   const grouped = useMemo(() => {
     if (!visibleVulns) return null;
@@ -156,13 +195,34 @@ export function SecurityTab() {
             <span className="text-xs text-[var(--color-text-muted)]">carregando…</span>
           )}
         </div>
-        <button
-          onClick={handleScan}
-          disabled={scanning || !ready}
-          className="rounded-md bg-[var(--color-accent-primary)] px-3 py-1 text-xs font-semibold text-black transition hover:bg-[var(--color-accent-secondary)] disabled:opacity-50"
-        >
-          {scanning ? "Scanning…" : "🔄 Re-escanear agora"}
-        </button>
+        <div className="flex items-center gap-3">
+          <label
+            className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--color-text-secondary)]"
+            title="Por padrão, esconde repos antigos (não-trackeados pela VM ou Vercel) e advisories cross-cutting. Imagens Docker da VM sempre aparecem."
+          >
+            <input
+              type="checkbox"
+              checked={showUntracked}
+              onChange={(e) => setShowUntracked(e.target.checked)}
+              className="accent-[var(--color-accent-primary)]"
+            />
+            <span>
+              Mostrar não-trackeados
+              {untrackedCount > 0 && (
+                <span className="ml-1 text-[var(--color-text-muted)]">
+                  ({untrackedCount})
+                </span>
+              )}
+            </span>
+          </label>
+          <button
+            onClick={handleScan}
+            disabled={scanning || !ready}
+            className="rounded-md bg-[var(--color-accent-primary)] px-3 py-1 text-xs font-semibold text-black transition hover:bg-[var(--color-accent-secondary)] disabled:opacity-50"
+          >
+            {scanning ? "Scanning…" : "🔄 Re-escanear agora"}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
