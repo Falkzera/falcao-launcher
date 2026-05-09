@@ -78,21 +78,25 @@ pub async fn monitor_open_tunnel(state: State<'_, MonitorState>) -> Result<u16, 
         );
     }
 
-    let port = state.tunnel.open().await.map_err(|e| e.to_string())?;
-    let url = format!(
-        "postgresql://monitor_reader:{}@localhost:{}/falcao_monitor",
-        urlencoding::encode(&state.reader_password),
-        port
-    );
-    let pool = queries::build_pool(&url).map_err(|e| e.to_string())?;
-    *state.pool.lock().unwrap() = Some(pool);
+    let (port, is_first) = state.tunnel.open().await.map_err(|e| e.to_string())?;
+    if is_first {
+        let url = format!(
+            "postgresql://monitor_reader:{}@localhost:{}/falcao_monitor",
+            urlencoding::encode(&state.reader_password),
+            port
+        );
+        let pool = queries::build_pool(&url).map_err(|e| e.to_string())?;
+        *state.pool.lock().unwrap() = Some(pool);
+    }
     Ok(port)
 }
 
 #[tauri::command]
 pub async fn monitor_close_tunnel(state: State<'_, MonitorState>) -> Result<(), String> {
-    state.tunnel.close().await.map_err(|e| e.to_string())?;
-    *state.pool.lock().unwrap() = None;
+    let is_last = state.tunnel.close().await.map_err(|e| e.to_string())?;
+    if is_last {
+        *state.pool.lock().unwrap() = None;
+    }
     Ok(())
 }
 
