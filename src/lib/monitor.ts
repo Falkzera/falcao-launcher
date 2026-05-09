@@ -3,7 +3,7 @@
 // de retorno mantêm snake_case do struct Rust (vide src/types/monitor.ts).
 
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LogsRangeResponse } from "../types/analysis";
 import type {
   ContainerInfo,
@@ -134,15 +134,20 @@ export function useTunnel(): { ready: boolean; error: string | null } {
  * Polling helper genérico. Roda `fn` imediatamente e depois a cada `intervalMs`
  * enquanto `enabled` for true. A função é guardada num ref pra não ressubscrever
  * o intervalo a cada render do caller (que pode passar arrow funcs novas).
+ *
+ * `refetch()` força um tick imediato fora do schedule — útil após uma ação
+ * que modifica os dados no servidor (ex: rescan) pra evitar esperar até 60s
+ * pra UI refletir a mudança.
  */
 export function usePolling<T>(
   fn: () => Promise<T>,
   intervalMs: number,
   enabled: boolean,
-): { data: T | null; error: string | null } {
+): { data: T | null; error: string | null; refetch: () => Promise<void> } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fnRef = useRef(fn);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     fnRef.current = fn;
@@ -150,28 +155,40 @@ export function usePolling<T>(
 
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
+    cancelledRef.current = false;
 
     const tick = () =>
       fnRef
         .current()
         .then((v) => {
-          if (!cancelled) {
+          if (!cancelledRef.current) {
             setData(v);
             setError(null);
           }
         })
         .catch((e) => {
-          if (!cancelled) setError(String(e));
+          if (!cancelledRef.current) setError(String(e));
         });
 
     tick();
     const id = setInterval(tick, intervalMs);
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       clearInterval(id);
     };
   }, [intervalMs, enabled]);
 
-  return { data, error };
+  const refetch = useCallback(async () => {
+    try {
+      const v = await fnRef.current();
+      if (!cancelledRef.current) {
+        setData(v);
+        setError(null);
+      }
+    } catch (e) {
+      if (!cancelledRef.current) setError(String(e));
+    }
+  }, []);
+
+  return { data, error, refetch };
 }

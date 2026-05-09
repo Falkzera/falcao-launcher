@@ -64,13 +64,17 @@ export function SecurityTab() {
     localStorage.setItem(SHOW_UNTRACKED_KEY, String(showUntracked));
   }, [showUntracked]);
 
-  const { data: vulns, error: vulnsError } = usePolling(
+  const { data: vulns, error: vulnsError, refetch: refetchVulns } = usePolling(
     () => monitorApi.listVulnerabilities(filters),
-    60_000,
+    30_000,
     ready,
   );
-  const { data: summary } = usePolling(monitorApi.vulnSummary, 60_000, ready);
-  const { data: trackedTokens } = usePolling(
+  const { data: summary, refetch: refetchSummary } = usePolling(
+    monitorApi.vulnSummary,
+    30_000,
+    ready,
+  );
+  const { data: trackedTokens, refetch: refetchTracked } = usePolling(
     monitorApi.listTrackedTokens,
     5 * 60_000,
     ready,
@@ -129,6 +133,8 @@ export function SecurityTab() {
         monitorApi.triggerTrivyScan(),
         monitorApi.triggerDependabotScan(),
       ]);
+      // Refetch imediato — não esperar até o próximo tick de 30s.
+      await Promise.allSettled([refetchVulns(), refetchSummary(), refetchTracked()]);
     } finally {
       setScanning(false);
     }
