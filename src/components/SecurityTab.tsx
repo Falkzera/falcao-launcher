@@ -4,6 +4,10 @@ import { InlineLoading } from "./Loading";
 import { SecurityScanProgress } from "./SecurityScanProgress";
 import { VulnerabilityRow } from "./VulnerabilityRow";
 import {
+  resolveSecurityTargetDir,
+  serializeSecurityGroup,
+} from "../lib/serializeSecurity";
+import {
   shouldRevalidateDismiss,
   vulnDismissKey,
   type DismissedVuln,
@@ -121,6 +125,16 @@ export function SecurityTab() {
     refreshDismissed();
   };
 
+  const handleInvestigateGroup = async (sourceId: string, list: VulnRow[]) => {
+    const prompt = serializeSecurityGroup(sourceId, list);
+    const targetDir = resolveSecurityTargetDir(sourceId);
+    try {
+      await monitorApi.spawnClaudeInvestigation(prompt, targetDir);
+    } catch (e) {
+      console.error("spawnClaudeInvestigation failed:", e);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-3">
@@ -200,11 +214,20 @@ export function SecurityTab() {
         <div className="space-y-4">
           {grouped.map(([source, list]) => (
             <section key={source} className="space-y-2">
-              <h3 className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
-                {source}{" "}
-                <span className="text-[var(--color-text-muted)]">
-                  ({list.length})
+              <h3 className="flex items-center gap-2 font-mono text-sm font-semibold text-[var(--color-text-primary)]">
+                <span>
+                  {source}{" "}
+                  <span className="text-[var(--color-text-muted)]">
+                    ({list.length})
+                  </span>
                 </span>
+                <button
+                  onClick={() => handleInvestigateGroup(source, list)}
+                  title={`Abrir Claude Code com contexto de ${list.length} CVE${list.length === 1 ? "" : "s"} desse grupo`}
+                  className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-accent-primary)]/60 hover:text-[var(--color-accent-primary)]"
+                >
+                  🤖 Investigar com Claude
+                </button>
               </h3>
               <div className="space-y-1.5">
                 {list.map((v) => {
