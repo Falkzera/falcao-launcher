@@ -17,6 +17,8 @@ set -uo pipefail
 ENDPOINTS=(
   "https://falcao-financas.duckdns.org/api/health"
   "https://falcao-financas.vercel.app"
+  "https://falcao-questoes.duckdns.org/health"
+  "https://falcao-questoes.vercel.app"
   "https://162.55.217.189|k"
 )
 

@@ -293,14 +293,15 @@ pub async fn monitor_health_summary(
         .clone()
         .ok_or_else(|| "tunnel closed".to_string())?;
 
-    let (r0, r1, r2) = tokio::join!(
-        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[0]),
-        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[1]),
-        queries::fetch_health_summary(&pool, HEALTH_ENDPOINTS[2]),
-    );
+    // Sequencial é suficiente: 5 SELECTs em índice da hypertable são <50ms cada.
+    // Antes era tokio::join! de 3, mas com lista expansível vira await em loop.
+    let mut results = Vec::with_capacity(HEALTH_ENDPOINTS.len());
+    for ep in HEALTH_ENDPOINTS.iter() {
+        results.push(queries::fetch_health_summary(&pool, ep).await);
+    }
 
-    let mut out = Vec::with_capacity(3);
-    for (i, r) in [r0, r1, r2].into_iter().enumerate() {
+    let mut out = Vec::with_capacity(HEALTH_ENDPOINTS.len());
+    for (i, r) in results.into_iter().enumerate() {
         match r {
             Ok(s) => out.push(s),
             Err(e) => {
