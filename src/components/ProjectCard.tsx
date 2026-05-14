@@ -317,8 +317,8 @@ export function ProjectCard({
         />
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+      <div className="mt-4 flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-[var(--color-text-secondary)]">
           {project.has_package_json ? (
             runnable ? (
               <span className="truncate rounded-md bg-[var(--color-accent-soft)] px-2 py-1 font-mono text-[var(--color-accent-primary)]">
